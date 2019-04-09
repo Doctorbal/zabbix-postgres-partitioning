@@ -21,11 +21,11 @@ Table of Contents
          * [<a href="#postgresql.conf">postgresql.conf</a>](#postgresqlconf)
          * [<a href="#create-partitioned-tables">Create Partitioned Tables</a>](#create-partitioned-tables)
          * [<a href="#deleting-designated-partitions">Deleting designated partitions</a>](#deleting-designated-partitions)
-         * [<a href="#partition-maintenance--creating-future-partitions">Partition maintenance: Creating future partitions</a>](#partition-maintenance-creating-future-partitions                                                            )
-         * [<a href="#partition-maintenance--droppingexpiring-old-partitions">Partition maintenance: Dropping/expiring old partitions</a>](#partition-maintenance-droppingexpirin                                                            g-old-partitions)
+         * [<a href="#partition-maintenance--creating-future-partitions">Partition maintenance: Creating future partitions</a>](#partition-maintenance-creating-future-partitions)
+         * [<a href="#partition-maintenance--droppingexpiring-old-partitions">Partition maintenance - Dropping/expiring old partitions</a>](#partition-maintenance---droppingexpiring-old-partitions)
          * [<a href="#delete-designated-partitions">Delete designated partitions</a>](#delete-designated-partitions)
-         * [<a href="#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman">Change Zabbix history* tables from monthly to daily with pg_partman</a>](#change-zabbix                                                            -history-tables-from-monthly-to-daily-with-pg_partman)
-            * [<a href="#references">References</a>](#references)
+         * [<a href="#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman">Change Zabbix history tables from monthly to daily with pg_partman</a>](#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman)
+         * [<a href="#references">References</a>](#references)
       * [<a href="#zabbix-data-dump-to-new-database">Zabbix Data Dump To New Database</a>](#zabbix-data-dump-to-new-database)
          * [<a href="#pgdumppgrestore-manual-mechanism">pgdump/pgrestore Manual Mechanism</a>](#pgdumppgrestore-manual-mechanism)
       * [<a href="#benchmarking">Performance Testing</a>](#performance-testing)
@@ -373,7 +373,7 @@ SELECT run_maintenance(p_analyze := false);
 
 **Native partitioning can result in heavy locking and therefore it is recommended to set p_analyze to FALSE which will effectively disable analyze.**
 
-### [Partition maintenance: Dropping/expiring old partitions](#partition-maintenance--droppingexpiring-old-partitions)
+### [Partition maintenance - Dropping/expiring old partitions](#partition-maintenance--droppingexpiring-old-partitions)
 
 To configure pg_partman to drop old partitions, update the `partman.part_config` tables:
 
@@ -415,7 +415,7 @@ select partman.run_maintenance('public.history');
 
 ---
 
-### [Change Zabbix history* tables from monthly to daily with pg_partman](#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman)
+### [Change Zabbix history tables from monthly to daily with pg_partman](#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman)
 
 
 * Originally we agreed to perform monthly partitions on the history* tables. But there is so much data being sent to Zabbix it increases the Zabbix database quickly. This will make scaling a problem in the future.
@@ -660,7 +660,7 @@ VACUUM ANALYZE history_text;
 Ensure `pg_partman_bgw` is set in `postgresql.conf` file.
 
 
-#### [References](#references)
+### [References](#references)
 
 * [Change already implemented PSQL 11 Native Partitioning from Monthly to Daily](https://github.com/pgpartman/pg_partman/issues/248)
 * [PostgreSQL Partition Manager Extension (`pg_partman`)](https://github.com/pgpartman/pg_partman/blob/master/doc/pg_partman.md)
