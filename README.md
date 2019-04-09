@@ -358,7 +358,7 @@ UPDATE partman.part_config set retention = '30 day', retention_keep_table = fals
 Then execute maintenance procedure:
 
 ```
-SELECT partman.run_maintenance('public.history)
+SELECT partman.run_maintenance('public.history');
 ```
 
 ### [Partition maintenance: Creating future partitions](#partition-maintenance--creating-future-partitions)
