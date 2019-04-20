@@ -42,9 +42,7 @@ Table of Contents
 ## [Requirements](#requirements)
 
 * Debian 8 Jessie or Debian 9 Stretch OS Distro
-* Tested successfully on PostgreSQL version 10 and 11
-* `remotestandbydb` - PostgreSQL 11 Database with partitioned tables using `pg_partman`
-* `remotedb` - PostgreSQL 11 Non-Partitioned database
+* PostgreSQL version 11
 
 ---
 
@@ -121,19 +119,7 @@ $func$ LANGUAGE plpgsql;
 ## [Prepare PostgreSQL Database](#prepare-postgresql-database)
 
 1. Download and install the [PostgreSQL Core Distribution](https://www.postgresql.org/download/) that supports Native Partitioning. As of this writing it is PostgreSQL v11.1.
-2. Tune `postgresql.conf` to include `constraint_exclusion = on`. This requires a restart of PostgreSQL afterwards.
-```
-[local]:5432 postgres@zabbix=# analyze;
-ANALYZE
-Time: 284.578 ms
-[local]:5432 postgres@zabbix=# show constraint_exclusion ;
- constraint_exclusion
-----------------------
- on
-(1 row)
-
-Time: 0.586 ms
-```
+2. Tune `postgresql.conf` to ensure `enable_partition_pruning = on`. The default should be `on`. This enables or disables the query planner's ability to eliminate a partitioned table's partitions from query plans, thus improving performance.
 3. Copy the `pg_hba.conf` from the old database to the new database and tune the database appropriately. You can use the following tools:
 * [pgtune](https://pgtune.leopard.in.ua/#/)
 * [postgresqltuner](https://github.com/jfcoz/postgresqltuner).
@@ -157,8 +143,8 @@ ssh-keygen # passwordless
 
 ```
 sudo -i -u postgres
-postgres@remotestandbydb:~$ createuser -P -s -e zabbix
-postgres@remotestandbydb:~$ psql
+postgres@zbxdatabase:~$ createuser -P -s -e zabbix
+postgres@zbxdatabase:~$ psql
 postgres=# create database zabbix;
 postgres=# GRANT ALL PRIVILEGES ON DATABASE zabbix to zabbix;
 postgres=# \q
@@ -306,7 +292,7 @@ sudo apt install postgresql-11-partman
 shared_preload_libraries = 'pg_stat_statements, pg_partman_bgw' # (change requires restart)
 
 ### Partitioning & pg_partman settings
-constraint_exclusion = on
+enable_partition_pruning = on
 pg_partman_bgw.interval = 3600
 pg_partman_bgw.role = 'zabbix'
 pg_partman_bgw.dbname = 'zabbix'
@@ -806,7 +792,7 @@ tps = 1784.074779 (excluding connections establishing)
 
 ### [Common Partitioning Mistakes](#common-partitioning-mistakes)
 
-* Not turning on `constraint_exclusion` and therefore always including every partition.
+* Not turning on `enable_partition_pruning = on`.
 * Failing to add all the same indexes or constraints to each partition that existed in the parent.
 * Forgetting to assign the same permissions to each child table as the parent.
 * Writing queries that don't filter on the partitioned key field. The `WHERE` clause needs to filter on constants. In general, keep the `WHERE` clauses as simple as possible, to improve the odds the optimizer will construct the exclusion proof you're looking for.
