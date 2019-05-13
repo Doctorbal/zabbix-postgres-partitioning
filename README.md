@@ -754,6 +754,7 @@ pg_dump -v -Fd -j 4 -d zabbix -h zabbix1 -U zabbix --inserts
 ```
 
 This will create dump files where each table row is extra INSERT. You may start the `pg_restore`, but that would take ages. So I turned off the fsync in `/etc/postgresql/11/main/postgresql.conf`.
+
 :warning: What I did was a little bit on the edge as turning `fsync=off` might have some unwanted results in case of the database failure!!! So use this with some extra caution.
 
 ```
