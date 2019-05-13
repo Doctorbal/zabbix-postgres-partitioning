@@ -683,7 +683,7 @@ postgres$ time pg_dump -Fc --file=/var/backups/postgresql/zabbix.dump -d zabbix 
 postgres# time pg_restore -Fc -j 8 -d zabbix /var/backups/postgresql/zabbix.dump
 ```
 
-### [Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11](#zabbix-and-postgresql-upgrade)
+## [Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11](#zabbix-and-postgresql-upgrade)
 
 In my case I was facing a task to optimize DB as well as considering that some of the new features of Zabbix 4.2 are too tempting to stay with 3.4. So I was facing the task to move to new DB server, preferably to migrate to the new DB machine, as well as start new Zabbix server. Here is a short HOWTO on the SQL side how I did it.
 
@@ -697,7 +697,7 @@ createuser --pwprompt zabbix
 createdb -O zabbix -E Unicode -T template0 zabbix
 ```
 
-## [SQL Config Zabbix 3.4 migration](#zabbix-3-4-config-migration)
+### [SQL Config Zabbix 3.4 migration](#zabbix-3-4-config-migration)
 
 On the new SQL server dump the config data from the old SQL. Exclude large tables, keep only the "small" one to make things much faster. As I did not want to keep the disk trashing I used the compression via `-j 4`. Also since I want to restore data in paralell later on, I choose the directory format (`-Fd`).
 
@@ -733,7 +733,7 @@ Once finished, if you want, you can already start you new Zabbix server using th
 
 This is the automatic procedure of DB schema upgrade from the old zabbix to the new version.
 
-## [SQL data from Zabbix 3.4 migration](#zabbix-3-4-data-migration)
+### [SQL data from Zabbix 3.4 migration](#zabbix-3-4-data-migration)
 
 We do not want to loose our `history*` and `trends*` data from the old database, also to have as short downtime as possible. So here come the more intricate and time consuming part about the whole data migration process.
 
@@ -779,7 +779,7 @@ Clean up, change the IPs on newly provisioned Zabbix, decomission the old one et
 
 #### [SideNote]
 
-You may come up with deviations of the migration strategy, such before starting the zabbix server create a dump the LARGE_TABLES-TRENDS using COPY, wait some time (2 hours might be enough) and then start new zabbix server, which will convert the database and then restore the trends. As there should be no duplicate it may probably succeed, but ... if not it will roll back all the data inserted so far.
+You may come up with deviations of the migration strategy, such as, before starting the new zabbix server create a dump the LARGE_TABLES-TRENDS using COPY, wait some time (2 hours might be enough), so there should be no issue with data constraints and just then start new zabbix server, which will convert the database and then restore the trends as well as starts INSERTing new data. As there should be no duplicate keys on `trends*`, it may be possible to restore tables with success and not having to turn off sync, but ... if not it will roll back all the data inserted so far.
 
 ```
 pg_dump -v -Fd -j 4 -d zabbix -h zabbix1 -U zabbix -f sql_dump-LARGE_TABLES-TRENDS-for-restore --table=trends*
