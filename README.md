@@ -740,17 +740,19 @@ We do not want to loose our `history*` and `trends*` data from the old database,
 Quite straight forward procedure of migration of the `history*` tables.
 
 ```
-pg_dump -v -Fd -j 4 -d zabbix -h <OLD_ZABBIX_SQL_IP> -U zabbix -Z 4 -f sql_dump-LARGE_TABLES-HISTORY-for-restore --table=history*
+        -f sql_dump-LARGE_TABLES-HISTORY-for-restore --table=history*
+pg_dump -v -Fd -j 4 -d zabbix -h <OLD_ZABBIX_SQL_IP> -U zabbix -Z 4 
 pg_restore -v -Fd -j 4 -d zabbix sql_dump-LARGE_TABLES-HISTORY-for-restore
 ```
 You can use the default `COPY` procedure, as there is no constrain on the table. So eventually it is allowed to insert the data, even the duplicate one to the `history*` tables. But hey tey will be there only few days (90 in my case).
 
 For the `trends*` tables this is more difficult. As there is a unique constrain, it is not possible to use `COPY` because it will most likely fail and no data will be inserted. 
 
-What I did was a little bit on the edge.
+:warning: What I did was a little bit on the edge as turning `fsync=off` might have some unwanted results in case of the database failure. :warning:
 
 ```
-pg_dump -v -Fd -j 4 -d zabbix -h zabbix1 -U zabbix --inserts -f sql_dump-LARGE_TABLES-TRENDS-INSERTS-for-restore --table=trends*
+pg_dump -v -Fd -j 4 -d zabbix -h zabbix1 -U zabbix --inserts 
+        -f sql_dump-LARGE_TABLES-TRENDS-INSERTS-for-restore --table=trends*
 ```
 
 This will create dump files where each table row is extra INSERT. You may start the `pg_restore`, but that would take ages. So I turned off the fsync in `/etc/postgresql/11/main/postgresql.conf`.
