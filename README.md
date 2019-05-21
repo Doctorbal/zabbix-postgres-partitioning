@@ -269,6 +269,18 @@ CREATE TABLE public.trends_uint
 
 ---
 
+Optionally depending on the role you used run
+
+```
+ALTER TABLE public.history OWNER TO zabbix;
+ALTER TABLE public.history_log OWNER TO zabbix;
+ALTER TABLE public.history_str OWNER TO zabbix;
+ALTER TABLE public.history_text OWNER TO zabbix;
+ALTER TABLE public.history_uint OWNER TO zabbix;
+ALTER TABLE public.trends OWNER TO zabbix;
+ALTER TABLE public.trends_uint OWNER TO zabbix;
+```
+
 ## [PostgreSQL Partition Manager Extension (pg_partman)](#postgresql-partition-manager-extension)
 
 pg_partman is an extensions to create and manage both time-based and serial-based table partition sets. Native partitioning in PostgreSQL 10 is supported as of pg_partman v3.0.1 and PostgreSQL 11 as of pg_partman v4.0.0.
@@ -311,6 +323,13 @@ Then create the SCHEMA and EXTENSION:
 ```
 CREATE SCHEMA partman;
 CREATE EXTENSION pg_partman schema partman;
+```
+
+Optionally depending on the user you used for this operation you need to set the right access right to your zabbix role, eg.
+```
+GRANT USAGE ON SCHEMA partman TO zabbix;
+GRANT SELECT ON ALL TABLES IN SCHEMA partman TO zabbix;
+GRANT DELETE ON ALL TABLES IN SCHEMA partman TO zabbix;
 ```
 
 ### [Create Partitioned Tables](#create-partitioned-tables)
@@ -645,7 +664,6 @@ VACUUM ANALYZE history_text;
 
 Ensure `pg_partman_bgw` is set in `postgresql.conf` file.
 
-
 ### [References](#references)
 
 * [Change already implemented PSQL 11 Native Partitioning from Monthly to Daily](https://github.com/pgpartman/pg_partman/issues/248)
@@ -665,13 +683,118 @@ postgres$ time pg_dump -Fc --file=/var/backups/postgresql/zabbix.dump -d zabbix 
 postgres# time pg_restore -Fc -j 8 -d zabbix /var/backups/postgresql/zabbix.dump
 ```
 
+## [Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11](#zabbix-and-postgresql-upgrade)
+
+In my case I was facing a task to optimize DB as well as considering that some of the new features of Zabbix 4.2 are too tempting to stay with 3.4. So I was facing the task to move to new DB server, preferably to migrate to the new DB machine, as well as start new Zabbix server. Here is a short HOWTO on the SQL side how I did it.
+
+Prepare the new Zabbix server, new virtual machine with new IP address (luckily I do have 2 IPs, one for live monitoring and other for the test Zabbix environment).
+Prepare the new SQL server, yet again new virtual machine (in my case PostgreSQL 11). Install the pg_partman (#postgresql-partition-manager-extension) extension as described above.
+
+For the Zabbix data migration just create the user and database as needed.
+
+```
+createuser --pwprompt zabbix
+createdb -O zabbix -E Unicode -T template0 zabbix
+```
+
+### [SQL Config Zabbix 3.4 migration](#zabbix-3-4-config-migration)
+
+On the new SQL server dump the config data from the old SQL. Exclude large tables, keep only the "small" one to make things much faster. As I did not want to keep the disk trashing I used the compression via `-j 4`. Also since I want to restore data in parallel later on, I choose the directory format (`-Fd`).
+
+```
+pg_dump -v -Fd -j 4 -d zabbix -h <OLD_ZABBIX_SQL_IP> -U zabbix --inserts -Z 4 -f sql_dump-SMALL_TABLES-for-restore --exclude-table=history* --exclude-table=trends*
+```
+
+Now restore the tables to the new SQL machine. I have chosen to use the user `zabbix` for this import to be on the safe side.
+
+```
+pg_restore -v -Fd -j 4 -v -d zabbix -h 127.0.0.1 -U zabbix sql_dump-SMALL_TABLES-for-restore
+```
+
+At this point you have all but history* and trends* tables moved to the new SQL. Prepare those missing tables as specified at [Create Partitioned Tables](#create-partitioned-tables), adjust parameters according to your needs (retention etc).
+
+Once finished, if you want, you can already start you new Zabbix server using this new DB. Database has all the needed config data as well as some of the production data. All what is missing are just data from `history*` and `trends*` tables. So if you decide to start the zabbix server, you should see in the `zabbix_server.log` migration procedure taking place, lines like this (as mentioned I was migrating from the Zabbix 3.4 to 4.2, hence the database versions in the logs).
+
+```
+  6330:20190512:020451.749 using configuration file: /etc/zabbix/zabbix_server.conf
+  6330:20190512:020451.862 current database version (mandatory/optional): 03040000/03040007
+  6330:20190512:020451.862 required mandatory version: 04020000
+  6330:20190512:020451.862 starting automatic database upgrade
+  6330:20190512:020451.880 completed 0% of database upgrade
+  6330:20190512:020451.897 completed 1% of database upgrade
+  6330:20190512:020451.932 completed 2% of database upgrade
+  ...
+  6364:20190512:021416.145 completed 99% of event name update
+  6364:20190512:021416.322 completed 100% of event name update
+  6364:20190512:021416.555 event name update completed
+  6364:20190512:021416.567 server #0 started [main process]
+  ...
+```
+
+This is the automatic procedure of DB schema upgrade from the old zabbix to the new version.
+
+### [SQL data from Zabbix 3.4 migration](#zabbix-3-4-data-migration)
+
+We do not want to loose our `history*` and `trends*` data from the old database, also to have as short downtime as possible. So here come the more intricate and time consuming part about the whole data migration process.
+
+Quite straight forward procedure of migration of the `history*` tables.
+
+```
+        -f sql_dump-LARGE_TABLES-HISTORY-for-restore --table=history*
+pg_dump -v -Fd -j 4 -d zabbix -h <OLD_ZABBIX_SQL_IP> -U zabbix -Z 4 
+pg_restore -v -Fd -j 4 -d zabbix sql_dump-LARGE_TABLES-HISTORY-for-restore
+```
+You can use the default `COPY` procedure, as there is no constrain on the table. So eventually it is allowed to insert the data, even the duplicate one to the `history*` tables. But they will be there only few days and expire eventually (14 in my case).
+
+For the `trends*` tables this is more difficult. As there is a unique constrain, it is not possible to use `COPY` because it will most likely fail and no data will be inserted. 
+
+```
+pg_dump -v -Fd -j 4 -d zabbix -h zabbix1 -U zabbix --inserts 
+        -f sql_dump-LARGE_TABLES-TRENDS-INSERTS-for-restore --table=trends*
+```
+
+This will create dump files where each table row is extra INSERT. You may start the `pg_restore`, but that would take ages. So I turned off the fsync in `/etc/postgresql/11/main/postgresql.conf`.
+
+:warning: What I did was a little bit on the edge as turning `fsync=off` might have some unwanted results in case of the database failure!!! So use this with some extra caution.
+
+```
+fsync = off                             # flush data to disk for crash safety
+```
+
+Just reload the PostgreSQL, restart is not required. Now you can start the import procedure.
+
+```
+pg_restore -v -Fd -j 4 -d zabbix sql_dump-LARGE_TABLES-TRENDS-INSERTS-for-restore
+```
+
+In my case I was importing about 49 million records. It will finish with some error reports but you can ignore those, as majority of the data will be inserted and only duplicates will fail.
+
+Turn on the fsync in `/etc/postgresql/11/main/postgresql.conf`, or just delete this extra line as on is default so you are on the safe side once again.
+
+```
+fsync = on                             # flush data to disk for crash safety
+```
+
+Reload PostgreSQL and you should be ready for the full production.
+
+Clean up, change the IPs on newly provisioned Zabbix, decommission the old one etc. as needed.
+
+#### [SideNote]
+
+You may come up with deviations of the migration strategy, such as, before starting the new zabbix server create a dump the LARGE_TABLES-TRENDS using COPY, wait some time (2 hours might be enough), so there should be no issue with data constraints and just then start new zabbix server, which will convert the database and then restore the trends as well as starts INSERTing new data. As there should be no duplicate keys on `trends*`, it may be possible to restore tables with success and not having to turn off sync, but ... if not it will roll back all the data inserted so far.
+
+```
+pg_dump -v -Fd -j 4 -d zabbix -h zabbix1 -U zabbix -f sql_dump-LARGE_TABLES-TRENDS-for-restore --table=trends*
+```
+
+
 ---
 
 ## [Performance Testing](#benchmarking)
 
 ### [pgbench](#pgbench)
 
-[`pgbench`](https://www.postgresql.org/docs/current/pgbench.html) help understand **Transactioction Processing Performance Countil (TPC)** on a database to see performance.
+[`pgbench`](https://www.postgresql.org/docs/current/pgbench.html) help understand **Transaction Processing Performance Council (TPC)** on a database to see performance.
 
 * Ensure you generate enough load.
 * Options
