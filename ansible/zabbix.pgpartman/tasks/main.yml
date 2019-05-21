@@ -1,0 +1,115 @@
+---
+- name: "Debian | Install pg_partman for PostgreSQL version {{ postgresql_version }}"
+  apt:
+    name: "{{ postgresql_pgpartman_deb_packages }}"
+    state: present
+  tags:
+    - pgpartman-install
+
+- name: "Debian | Update the shared_preload_libraries config for enabling the pg_partman_bgw"
+  lineinfile:
+    path: "{{ postgresql_conf_directory }}/postgresql.conf"
+    regexp: ^((?=shared_preload_libraries)(?!.*pg_partman_bgw).*\s*=\s*'.*)('.*)
+    line: \1, pg_partman_bgw\2
+    backrefs: yes
+    backup: yes
+  notify: restart postgresql with service
+  tags:
+    - pgpartman-postgresql-config
+
+- name: "Debian | Copy pgpartman.conf to {{ postgresql_conf_directory }}/conf.d"
+  template:
+    src: pgpartman.conf.j2
+    dest: "{{ postgresql_conf_directory }}/conf.d/pgpartman.conf"
+    owner: postgres
+    group: postgres
+    mode: 0640
+  notify: restart postgresql with service
+  tags:
+    - pgpartman-config
+
+- name: "Debian | Copy SQL Scripts to {{ postgresql_home_directory }}"
+  template:
+    src: "{{ item }}"
+    dest: "{{ postgresql_home_directory }}/{{ item | basename | regex_replace('.j2') }}"
+    owner: postgres
+    group: postgres
+    mode: 0744
+    follow: yes
+  with_fileglob:
+    - templates/var/lib/postgresql/*
+  tags:
+    - copy-pgpartman-scripts
+
+### Running SQL Script
+### The scripts are intended to be run on an empty database for initial deployment.
+### You can then pg_dump the previous data or import the Zabbix schema if building
+### a new database. Thus the variable zabbix_database_partitioning_scripts should
+### shoult be set to "false" and only set to "true" when initially deploying the scripts.
+- name: "Debian | Step 1 - create-schema-pgpartman.sql"
+  shell: "psql -d {{ pgpartman_database }} < {{ postgresql_home_directory }}/create-schema-pgpartman.sql"
+  args:
+    executable: /bin/bash
+  become: yes
+  become_user: postgres
+  when:
+    - zabbix_database_partitioning_scripts
+  tags:
+    - create-schema-pgpartman
+
+- name: "Debian | Step 2 - create-extensions-pgpartman.sql"
+  shell: "psql -d {{ pgpartman_database }} < {{ postgresql_home_directory }}/create-extensions-pgpartman.sql"
+  args:
+    executable: /bin/bash
+  become: yes
+  become_user: postgres
+  when:
+    - zabbix_database_partitioning_scripts
+  tags:
+    - create-extensions-pgpartman
+
+- name: "Debian | Step 3 - create-initial-historytrends-tables.sql"
+  shell: "psql -d {{ pgpartman_database }} < {{ postgresql_home_directory }}/create-initial-historytrends-tables.sql"
+  args:
+    executable: /bin/bash
+  become: yes
+  become_user: postgres
+  when:
+    - zabbix_database_partitioning_scripts
+  tags:
+    - create-initial-historytrends-tables
+
+- name: "Debian | Step 4 - create-partitioned-tables.sql"
+  shell: "psql -d {{ pgpartman_database }} < {{ postgresql_home_directory }}/create-partitioned-tables.sql"
+  args:
+    executable: /bin/bash
+  become: yes
+  become_user: postgres
+  when:
+    - zabbix_database_partitioning_scripts
+  tags:
+    - create-partitioned-tables
+
+### Partition Maintenance - The following scripts will drop partitions greater than X old for history and trends.
+- name: "Debian | partition-maintenance.sql"
+  shell: "psql -d {{ pgpartman_database }} < {{ postgresql_home_directory }}/partition-maintenance.sql"
+  args:
+    executable: /bin/bash
+  become: yes
+  become_user: postgres
+  when:
+    - zabbix_partition_maintenance
+  tags:
+    - partition-maintenance
+
+### The following script should be run when the Zabbix Database schema and data is fully populated
+- name: "Debian | housekeeper-blackhole.sql"
+  shell: "psql -d {{ pgpartman_database }} < {{ postgresql_home_directory }}/housekeeper-blackhole.sql"
+  args:
+    executable: /bin/bash
+  become: yes
+  become_user: postgres
+  when:
+    - zabbix_housekeeper_blackhole
+  tags:
+    - housekeeper-blackhole

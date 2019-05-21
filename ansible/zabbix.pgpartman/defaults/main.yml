@@ -1,0 +1,39 @@
+#### Basic Settings
+postgresql_version: 11
+postgresql_cluster_name: "main"
+postgresql_conf_directory: "/etc/postgresql/{{ postgresql_version }}/{{ postgresql_cluster_name }}"
+postgresql_home_directory: /var/lib/postgresql
+postgresql_service_name: "postgresql"
+postgresql_pgpartman_deb_packages: "postgresql-{{ postgresql_version }}-partman"
+pgpartman_schema: partman
+pgpartman_database: zabbix
+
+#### pgpartman.conf Parameters
+pgpartman_bgw_interval: 3600
+pgpartman_bgw_role: zabbix
+pgpartman_bgw_dbname: zabbix
+pgpartman_bgw_analyze: off # Turning this on increases databases load so be careful
+pgpartman_bgw_jobmon: on
+
+#### Running SQL Scripts
+zabbix_database_partitioning_scripts: false # this should be set to false and
+                                            # and only set to true on an empty database
+
+#### create-partitioned-tables.sql
+pgpartman_control: native # The column that the partitioning will be based on. 'partman' or 'native'
+pgpartman_history_interval: daily  # The time or integer range interval for each partition
+pgpartman_trends_interval: monthly # The time or integer range interval for each partition
+pgpartman_premake_history: 7 # The x number of partitions created previously and in advance for the history* tables
+pgpartman_premake_trends: 12 # The x number of partitions created previously and in advance for the trends* tables
+
+#### partition-maintenance.sql
+zabbix_partition_maintenance: True
+##### Be Careful with the following parameters as they drop the partitions
+history_retention_keep_table: 7 day # How long to retain the history* tables
+                                    # The default value should be between 7-14 days.
+trends_retention_keep_table: 12 month # How long to retain the trends* tables
+                                      # The default value should be =>12 months.
+
+#### Zabbix Housekeeper Blackhole
+zabbix_housekeeper_blackhole: False # This should be set to true after the Zabbix database
+                                    # is fully populated. You only need to run this once.

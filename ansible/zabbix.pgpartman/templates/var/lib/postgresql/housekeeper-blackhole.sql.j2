@@ -1,0 +1,21 @@
+/* RECOMMENDED FROM ZABBIX CONSULTANTS
+ * Even with housekeeping for items disabled, the Zabbix server
+ * and web interface will keep writing housekeeping information
+ * for future use into the housekeeper table. To avoid this,
+ * you can add trigger for this table AFTER YOU ADD THE DATA THERE.
+ */
+
+-- CREATE FUNCTION housekeeper_blackhole()
+CREATE OR REPLACE FUNCTION housekeeper_blackhole()
+    RETURNS trigger AS
+$func$
+BEGIN
+    RETURN NULL;
+END
+$func$ LANGUAGE plpgsql;
+
+-- CREATE TRIGGER
+CREATE TRIGGER housekeeper_blackhole
+    BEFORE INSERT ON housekeeper
+    FOR EACH ROW
+    EXECUTE PROCEDURE housekeeper_blackhole();

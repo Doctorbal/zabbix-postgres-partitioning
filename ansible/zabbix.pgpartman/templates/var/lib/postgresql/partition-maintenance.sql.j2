@@ -1,0 +1,25 @@
+/* To configure pg_partman to drop old partitions, update the partman.part_config tables
+ */
+
+UPDATE {{ pgpartman_schema }}.part_config SET retention_keep_table = false, retention = '{{ history_retention_keep_table }}'
+WHERE parent_table = 'public.history';
+UPDATE {{ pgpartman_schema }}.part_config SET retention_keep_table = false, retention = '{{ history_retention_keep_table }}'
+WHERE parent_table = 'public.history_uint';
+UPDATE {{ pgpartman_schema }}.part_config SET retention_keep_table = false, retention = '{{ history_retention_keep_table }}'
+WHERE parent_table = 'public.history_str';
+UPDATE {{ pgpartman_schema }}.part_config SET retention_keep_table = false, retention = '{{ history_retention_keep_table }}'
+WHERE parent_table = 'public.history_text';
+UPDATE {{ pgpartman_schema }}.part_config SET retention_keep_table = false, retention = '{{ history_retention_keep_table }}'
+WHERE parent_table = 'public.history_log';
+UPDATE {{ pgpartman_schema }}.part_config SET retention_keep_table = false, retention = '{{ trends_retention_keep_table }}'
+WHERE parent_table = 'public.trends';
+UPDATE {{ pgpartman_schema }}.part_config SET retention_keep_table = false, retention = '{{ trends_retention_keep_table }}'
+WHERE parent_table = 'public.trends_uint';
+
+SELECT {{ pgpartman_schema }}.run_maintenance('public.history');
+SELECT {{ pgpartman_schema }}.run_maintenance('public.history_uint');
+SELECT {{ pgpartman_schema }}.run_maintenance('public.history_str');
+SELECT {{ pgpartman_schema }}.run_maintenance('public.history_text');
+SELECT {{ pgpartman_schema }}.run_maintenance('public.history_log');
+SELECT {{ pgpartman_schema }}.run_maintenance('public.trends');
+SELECT {{ pgpartman_schema }}.run_maintenance('public.trends_uint');

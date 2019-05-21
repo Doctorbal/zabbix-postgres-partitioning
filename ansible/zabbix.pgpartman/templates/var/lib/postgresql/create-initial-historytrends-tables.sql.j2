@@ -1,0 +1,88 @@
+/* Partitioning syntax was introduced in PostgreSQL 10. It is very effective for INSERTs and large/slow
+ * `SELECT` queries, which makes it suitable for time series logging.With PostgreSQL version 11 it is
+ * possible to create a "default" partition. This stores rows that do not fail into any existing partition's
+ * range. This is ideal since the partitioned range might not include specific data which the default will
+ * then pick up. This is automatically done with pg_partman.
+ */
+-- history
+CREATE TABLE public.history
+(
+    itemid bigint NOT NULL,
+    clock integer NOT NULL DEFAULT 0,
+    value numeric(16,4) NOT NULL DEFAULT 0.0000,
+    ns integer NOT NULL DEFAULT 0
+) PARTITION BY RANGE (clock);
+
+CREATE INDEX history_1 ON public.history USING btree (itemid, clock);
+
+-- history_log
+CREATE TABLE public.history_log
+(
+    itemid bigint NOT NULL,
+    clock integer NOT NULL DEFAULT 0,
+    "timestamp" integer NOT NULL DEFAULT 0,
+    source character varying(64) COLLATE pg_catalog."default" NOT NULL DEFAULT ''::character varying,
+    severity integer NOT NULL DEFAULT 0,
+    value text COLLATE pg_catalog."default" NOT NULL DEFAULT ''::text,
+    logeventid integer NOT NULL DEFAULT 0,
+    ns integer NOT NULL DEFAULT 0
+) PARTITION BY RANGE (clock);
+
+CREATE INDEX history_log_1 ON public.history_log USING btree (itemid, clock);
+
+-- history_str
+CREATE TABLE public.history_str
+(
+    itemid bigint NOT NULL,
+    clock integer NOT NULL DEFAULT 0,
+    value character varying(255) COLLATE pg_catalog."default" NOT NULL DEFAULT ''::character varying,
+    ns integer NOT NULL DEFAULT 0
+) PARTITION BY RANGE (clock);
+
+CREATE INDEX history_str_1 ON public.history_str USING btree (itemid, clock);
+
+-- history_text
+CREATE TABLE public.history_text
+(
+    itemid bigint NOT NULL,
+    clock integer NOT NULL DEFAULT 0,
+    value text COLLATE pg_catalog."default" NOT NULL DEFAULT ''::text,
+    ns integer NOT NULL DEFAULT 0
+) PARTITION BY RANGE (clock);
+
+CREATE INDEX history_text_1 ON public.history_text USING btree (itemid, clock);
+
+-- history_uint
+CREATE TABLE public.history_uint
+(
+    itemid bigint NOT NULL,
+    clock integer NOT NULL DEFAULT 0,
+    value numeric(20,0) NOT NULL DEFAULT (0)::numeric,
+    ns integer NOT NULL DEFAULT 0
+) PARTITION BY RANGE (clock);
+
+CREATE INDEX history_uint_1 ON public.history_uint USING btree (itemid, clock);
+
+-- trends
+CREATE TABLE public.trends
+(
+    itemid bigint NOT NULL,
+    clock integer NOT NULL DEFAULT 0,
+    num integer NOT NULL DEFAULT 0,
+    value_min numeric(16,4) NOT NULL DEFAULT 0.0000,
+    value_avg numeric(16,4) NOT NULL DEFAULT 0.0000,
+    value_max numeric(16,4) NOT NULL DEFAULT 0.0000,
+    CONSTRAINT trends_pkey PRIMARY KEY (itemid, clock)
+) PARTITION BY RANGE (clock);
+
+-- trends_uint
+CREATE TABLE public.trends_uint
+(
+    itemid bigint NOT NULL,
+    clock integer NOT NULL DEFAULT 0,
+    num integer NOT NULL DEFAULT 0,
+    value_min numeric(20,0) NOT NULL DEFAULT (0)::numeric,
+    value_avg numeric(20,0) NOT NULL DEFAULT (0)::numeric,
+    value_max numeric(20,0) NOT NULL DEFAULT (0)::numeric,
+    CONSTRAINT trends_uint_pkey PRIMARY KEY (itemid, clock)
+) PARTITION BY RANGE (clock);

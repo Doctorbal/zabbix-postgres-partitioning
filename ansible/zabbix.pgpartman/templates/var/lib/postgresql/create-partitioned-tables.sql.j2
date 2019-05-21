@@ -1,0 +1,11 @@
+/* Perform the SQL queries on the Zabbix database (otherwise it won't find the functions in another database where
+ * the extension was added) which will target the pg_partman functions uploaded.
+ */
+
+select {{ pgpartman_schema }}.create_parent('public.history', 'clock', '{{ pgpartman_control }}', '{{ pgpartman_history_interval }}', null, {{ pgpartman_premake_history }}, 'on', null, true, 'seconds');
+select {{ pgpartman_schema }}.create_parent('public.history_uint', 'clock', '{{ pgpartman_control }}', '{{ pgpartman_history_interval }}', null, {{ pgpartman_premake_history }}, 'on', null, true, 'seconds');
+select {{ pgpartman_schema }}.create_parent('public.history_str', 'clock', '{{ pgpartman_control }}', '{{ pgpartman_history_interval }}', null, {{ pgpartman_premake_history }}, 'on', null, true, 'seconds');
+select {{ pgpartman_schema }}.create_parent('public.history_text', 'clock', '{{ pgpartman_control }}', '{{ pgpartman_history_interval }}', null, {{ pgpartman_premake_history }}, 'on', null, true, 'seconds');
+select {{ pgpartman_schema }}.create_parent('public.history_log', 'clock', '{{ pgpartman_control }}', '{{ pgpartman_history_interval }}', null, {{ pgpartman_premake_history }}, 'on', null, true, 'seconds');
+select {{ pgpartman_schema }}.create_parent('public.trends', 'clock', '{{ pgpartman_control }}', '{{ pgpartman_trends_interval }}', null, {{ pgpartman_premake_trends }}, 'on', null, true, 'seconds');
+select {{ pgpartman_schema }}.create_parent('public.trends_uint', 'clock', '{{ pgpartman_control }}', '{{ pgpartman_trends_interval }}', null, {{ pgpartman_premake_trends }}, 'on', null, true, 'seconds');
