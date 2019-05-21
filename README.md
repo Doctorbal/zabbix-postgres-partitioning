@@ -39,6 +39,7 @@ Table of Contents
       * [<a href="#partitioning-advantages-mistakes-and-problems">Partitioning Advantages, Mistakes and Problems</a>](#partitioning-advantages-mistakes-and-problems)
          * [<a href="#partitioning-advantages">Partitioning Advantages</a>](#partitioning-advantages)
          * [<a href="#common-partitioning-mistakes">Common Partitioning Mistakes</a>](#common-partitioning-mistakes)
+      * [<a href="#ansible-role">Ansible Role</a>](#ansible-role)
       * [<a href="#references">References</a>](#references-1)
 
 ---
@@ -687,6 +688,8 @@ postgres$ time pg_dump -Fc --file=/var/backups/postgresql/zabbix.dump -d zabbix 
 postgres# time pg_restore -Fc -j 8 -d zabbix /var/backups/postgresql/zabbix.dump
 ```
 
+---
+
 ## [Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11](#zabbix-and-postgresql-upgrade)
 
 In my case I was facing a task to optimize DB as well as considering that some of the new features of Zabbix 4.2 are too tempting to stay with 3.4. So I was facing the task to move to new DB server, preferably to migrate to the new DB machine, as well as start new Zabbix server. Here is a short HOWTO on the SQL side how I did it.
@@ -927,6 +930,14 @@ tps = 1784.074779 (excluding connections establishing)
 * Regarding **logical replication** note that the [logical replication restrictions from postgres documentation](https://www.postgresql.org/docs/current/logical-replication-restrictions.html) *Replication is only possible from base tables to base tables. That is, the tables on the publication and on the subscription side must be normal tables, not views, materialized views, partition root tables, or foreign tables. In the case of partitions, you can therefore replicate a partition hierarchy one-to-one, but you cannot currently replicate to a differently partitioned setup. Attempts to replicate tables other than base tables will result in an error.*
 
 *Reference - PostgreSQL 10 High Performance; 2018; pg 426-427*
+
+---
+
+## [Ansible Role](#ansible-role)
+
+I have written an ansible role that I used to configure pg_partman. I used the role in conjunction with the excellent [ANXS postgresql](https://github.com/ANXS/postgresql) role.
+
+For details please view [ansible|zabbix.pgpartman](ansible/zabbix.pgpartman/).
 
 ---
 
