@@ -28,7 +28,7 @@ Table of Contents
          * [<a href="#references">References</a>](#references)
       * [<a href="#zabbix-data-dump-to-new-database">Zabbix Data Dump To New Database</a>](#zabbix-data-dump-to-new-database)
          * [<a href="#pgdumppgrestore-manual-mechanism">pgdump/pgrestore Manual Mechanism</a>](#pgdumppgrestore-manual-mechanism)
-      * [<a href="#upgrade-zabbix-34-to-42-and-move-from-postgresql-96-to-postgresql-11">Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11</a>](#upgrade-zabbix-34-to-42-and-move-from-postgresql-96-to-postgresql-11)
+      * [<a href="#upgrade-zabbix-34-to-42-and-move-from-postgresql-96-to-postgresql-11">Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11</a>](#upgrade-zabbix-34-postgresql-11)
          * [<a href="#zabbix-3-4-config-migration">SQL Config Zabbix 3.4 migration</a>](#zabbix-3-4-config-migration)
          * [<a href="#zabbix-3-4-data-migration">SQL data from Zabbix 3.4 migration</a>](#zabbix-3-4-data-migration)
             * [[SideNote]](#sidenote)
@@ -690,7 +690,7 @@ postgres# time pg_restore -Fc -j 8 -d zabbix /var/backups/postgresql/zabbix.dump
 
 ---
 
-## [Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11](#upgrade-zabbix-34-to-42-and-move-from-postgresql-96-to-postgresql-11)
+## [Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11](#upgrade-zabbix-34-postgresql-11)
 
 In my case I was at the situation to optimize DB and also considering, that some of the new features of Zabbix 4.2 are too tempting to stay with "just" 3.4 (Grafana like behaviour). This meant activity to set up a new DB server, migrate data to the new DB machine, as well as start new Zabbix server. Here is a short HOWTO on the SQL side how I did it.
 
