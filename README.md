@@ -16,23 +16,23 @@ Table of Contents
          * [<a href="#postgresql-default-partition">PostgreSQL Default Partition</a>](#postgresql-default-partition)
          * [<a href="#optional--brin-versus-btree-indexes">Optional - BRIN versus Btree INDEXES</a>](#optional---brin-versus-btree-indexes)
          * [<a href="#create-table">CREATE TABLE</a>](#create-table)
-      * [<a href="#postgresql-partition-manager-extension">PostgreSQL Partition Manager Extension (pg_partman)</a>](#postgresql-partition-manager-extension-pg_partman)
+      * [<a href="#postgresql-partition-manager-extension">PostgreSQL Partition Manager Extension (pg_partman)</a>](#postgresql-partition-manager-extension)
          * [<a href="#installing-pg_partman">Installing pg_partman</a>](#installing-pg_partman)
-         * [<a href="#postgresql.conf">postgresql.conf</a>](#postgresqlconf)
+         * [<a href="#postgresql.conf">postgresql.conf</a>](#postgresql.conf)
          * [<a href="#create-partitioned-tables">Create Partitioned Tables</a>](#create-partitioned-tables)
          * [<a href="#deleting-designated-partitions">Deleting designated partitions</a>](#deleting-designated-partitions)
-         * [<a href="#partition-maintenance--creating-future-partitions">Partition maintenance: Creating future partitions</a>](#partition-maintenance-creating-future-partitions)
-         * [<a href="#partition-maintenance--droppingexpiring-old-partitions">Partition maintenance - Dropping/expiring old partitions</a>](#partition-maintenance---droppingexpiring-old-partitions)
+         * [<a href="#partition-maintenance-creating-future-partitions">Partition maintenance: Creating future partitions</a>](#partition-maintenance-creating-future-partitions)
+         * [<a href="#partition-maintenance-droppingexpiring-old-partitions">Partition maintenance - Dropping/expiring old partitions</a>](#partition-maintenance-droppingexpiring-old-partitions)
          * [<a href="#delete-designated-partitions">Delete designated partitions</a>](#delete-designated-partitions)
          * [<a href="#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman">Change Zabbix history tables from monthly to daily with pg_partman</a>](#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman)
          * [<a href="#references">References</a>](#references)
       * [<a href="#zabbix-data-dump-to-new-database">Zabbix Data Dump To New Database</a>](#zabbix-data-dump-to-new-database)
          * [<a href="#pgdumppgrestore-manual-mechanism">pgdump/pgrestore Manual Mechanism</a>](#pgdumppgrestore-manual-mechanism)
-      * [<a href="#zabbix-and-postgresql-upgrade">Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11</a>](#upgrade-zabbix-34-to-42-and-move-from-postgresql-96-to-postgresql-11)
-         * [<a href="#zabbix-3-4-config-migration">SQL Config Zabbix 3.4 migration</a>](#sql-config-zabbix-34-migration)
-         * [<a href="#zabbix-3-4-data-migration">SQL data from Zabbix 3.4 migration</a>](#sql-data-from-zabbix-34-migration)
+      * [<a href="#upgrade-zabbix-34-to-42-and-move-from-postgresql-96-to-postgresql-11">Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11</a>](#upgrade-zabbix-34-to-42-and-move-from-postgresql-96-to-postgresql-11)
+         * [<a href="#zabbix-3-4-config-migration">SQL Config Zabbix 3.4 migration</a>](#zabbix-3-4-config-migration)
+         * [<a href="#zabbix-3-4-data-migration">SQL data from Zabbix 3.4 migration</a>](#zabbix-3-4-data-migration)
             * [[SideNote]](#sidenote)
-      * [<a href="#benchmarking">Performance Testing</a>](#performance-testing)
+      * [<a href="#benchmarking">Performance Testing</a>](#benchmarking)
          * [<a href="#pgbench">pgbench</a>](#pgbench)
          * [<a href="#explain-analyze">EXPLAIN ANALYZE</a>](#explain-analyze)
          * [<a href="#zabbix-database-performance-results">Zabbix Databases Performance Results</a>](#zabbix-databases-performance-results)
@@ -371,7 +371,7 @@ Then execute maintenance procedure:
 SELECT partman.run_maintenance('public.history');
 ```
 
-### [Partition maintenance: Creating future partitions](#partition-maintenance--creating-future-partitions)
+### [Partition maintenance: Creating future partitions](#partition-maintenance-creating-future-partitions)
 
 pg_partman has a function `run_maintenance` that allows one to automate the table maintenance.
 
@@ -383,7 +383,7 @@ SELECT run_maintenance(p_analyze := false);
 
 **Native partitioning can result in heavy locking and therefore it is recommended to set p_analyze to FALSE which will effectively disable analyze.**
 
-### [Partition maintenance - Dropping/expiring old partitions](#partition-maintenance--droppingexpiring-old-partitions)
+### [Partition maintenance - Dropping/expiring old partitions](#partition-maintenance-droppingexpiring-old-partitions)
 
 To configure pg_partman to drop old partitions, update the `partman.part_config` tables:
 
@@ -690,12 +690,12 @@ postgres# time pg_restore -Fc -j 8 -d zabbix /var/backups/postgresql/zabbix.dump
 
 ---
 
-## [Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11](#zabbix-and-postgresql-upgrade)
+## [Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11](#upgrade-zabbix-34-to-42-and-move-from-postgresql-96-to-postgresql-11)
 
 In my case I was facing a task to optimize DB as well as considering that some of the new features of Zabbix 4.2 are too tempting to stay with 3.4. So I was facing the task to move to new DB server, preferably to migrate to the new DB machine, as well as start new Zabbix server. Here is a short HOWTO on the SQL side how I did it.
 
 Prepare the new Zabbix server, new virtual machine with new IP address (luckily I do have 2 IPs, one for live monitoring and other for the test Zabbix environment).
-Prepare the new SQL server, yet again new virtual machine (in my case PostgreSQL 11). Install the pg_partman (#postgresql-partition-manager-extension) extension as described above.
+Prepare the new SQL server, yet again new virtual machine (in my case PostgreSQL 11). [Install the pg_partman](#postgresql-partition-manager-extension) extension as described above.
 
 For the Zabbix data migration just create the user and database as needed.
 
