@@ -9,29 +9,26 @@ Table of Contents
       * [<a href="#zabbix-history-and-trends-tables">Zabbix History* and Trends* Tables</a>](#zabbix-history-and-trends-tables)
          * [<a href="#history--trends">history &amp; trends</a>](#history--trends)
       * [<a href="#zabbix-partitioning-considerations">Zabbix Partitioning Considerations</a>](#zabbix-partitioning-considerations)
-      * [<a href="#prepare-postgresql-database">Prepare PostgreSQL Database</a>](#prepare-postgresql-database)
-         * [<a href="#install-postgresql">Install PostgreSQL v11</a>](#install-postgresql-v11)
-         * [<a href="#prepare-zabbix-database">Prepare Zabbix Database</a>](#prepare-zabbix-database)
       * [<a href="#time-series-partitioning">Time Series Partitioning</a>](#time-series-partitioning)
          * [<a href="#postgresql-default-partition">PostgreSQL Default Partition</a>](#postgresql-default-partition)
          * [<a href="#optional--brin-versus-btree-indexes">Optional - BRIN versus Btree INDEXES</a>](#optional---brin-versus-btree-indexes)
-         * [<a href="#create-table">CREATE TABLE</a>](#create-table)
-      * [<a href="#postgresql-partition-manager-extension">PostgreSQL Partition Manager Extension (pg_partman)</a>](#postgresql-partition-manager-extension-pg_partman)
-         * [<a href="#installing-pg_partman">Installing pg_partman</a>](#installing-pg_partman)
-         * [<a href="#postgresql.conf">postgresql.conf</a>](#postgresqlconf)
+      * [<a href="#prepare-postgresql-database">Prepare PostgreSQL Database</a>](#prepare-postgresql-database)
+         * [<a href="#install-postgresql">Install PostgreSQL v11</a>](#install-postgresql-v11)
+         * [<a href="#prepare-zabbix-database">Prepare Zabbix Database</a>](#prepare-zabbix-database)
+         * [<a href="#create-table">Create Empty history* and trends* Tables</a>](#create-empty-history-and-trends-tables)
+      * [<a href="#postgresql-partition-manager-extension-pgpartman">PostgreSQL Partition Manager Extension (pg_partman)</a>](#postgresql-partition-manager-extension-pg_partman)
+         * [<a href="#installing-pgpartman">Installing pg_partman</a>](#installing-pg_partman)
+         * [<a href="#postgresqlconf">postgresql.conf</a>](#postgresqlconf)
          * [<a href="#create-partitioned-tables">Create Partitioned Tables</a>](#create-partitioned-tables)
-         * [<a href="#deleting-designated-partitions">Deleting designated partitions</a>](#deleting-designated-partitions)
-         * [<a href="#partition-maintenance-creating-future-partitions">Partition maintenance: Creating future partitions</a>](#partition-maintenance-creating-future-partitions)
-         * [<a href="#partition-maintenance-droppingexpiring-old-partitions">Partition maintenance - Dropping/expiring old partitions</a>](#partition-maintenance---droppingexpiring-old-partitions)
-         * [<a href="#delete-designated-partitions">Delete designated partitions</a>](#delete-designated-partitions)
-         * [<a href="#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman">Change Zabbix history tables from monthly to daily with pg_partman</a>](#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman)
-         * [<a href="#references">References</a>](#references)
-      * [<a href="#zabbix-data-dump-to-new-database">Zabbix Data Dump To New Database</a>](#zabbix-data-dump-to-new-database)
+         * [<a href="#deleting-designated-partitions">Deleting Designated Partitions</a>](#deleting-designated-partitions)
+         * [<a href="#partition-maintenance-creating-future-partitions">Partition Maintenance: Creating Future Partitions</a>](#partition-maintenance-creating-future-partitions)
+         * [<a href="#partition-maintenance-droppingexpiring-old-partitions">Partition Maintenance: Dropping/expiring old partitions</a>](#partition-maintenance-droppingexpiring-old-partitions)
+      * [<a href="#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman">Change Zabbix history tables from monthly to daily with pg_partman</a>](#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman)
+      * [<a href="#zabbix-remote-data-dump">Zabbix Remote Data Dump</a>](#zabbix-remote-data-dump)
          * [<a href="#pgdumppgrestore-manual-mechanism">pgdump/pgrestore Manual Mechanism</a>](#pgdumppgrestore-manual-mechanism)
-      * [<a href="#upgrade-zabbix-34-postgresql-11">Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11</a>](#upgrade-zabbix-34-to-42-and-move-from-postgresql-96-to-postgresql-11)
-         * [<a href="#zabbix-3-4-config-migration">SQL Config Zabbix 3.4 migration</a>](#sql-config-zabbix-34-migration)
-         * [<a href="#zabbix-3-4-data-migration">SQL data from Zabbix 3.4 migration</a>](#sql-data-from-zabbix-34-migration)
-            * [[SideNote]](#sidenote)
+      * [<a href="#upgrade-zabbix-v34-to-v42-while-moving-from-postgresql-v96-to-postgresql-v11">Upgrade Zabbix v3.4 to v4.2 while moving from PostgreSQL v9.6 to PostgreSQL v11</a>](#upgrade-zabbix-v34-to-v42-while-moving-from-postgresql-v96-to-postgresql-v11)
+         * [<a href="#migrate-the-configuration-data">Migrate the Configuration Data</a>](#migrate-the-configuration-data)
+         * [<a href="#migrate-the-old-history-and-trends-data">Migrate the old history* and trends* data</a>](#migrate-the-old-history-and-trends-data)
       * [<a href="#benchmarking">Performance Testing</a>](#performance-testing)
          * [<a href="#pgbench">pgbench</a>](#pgbench)
          * [<a href="#explain-analyze">EXPLAIN ANALYZE</a>](#explain-analyze)
@@ -40,7 +37,7 @@ Table of Contents
          * [<a href="#partitioning-advantages">Partitioning Advantages</a>](#partitioning-advantages)
          * [<a href="#common-partitioning-mistakes">Common Partitioning Mistakes</a>](#common-partitioning-mistakes)
       * [<a href="#ansible-role">Ansible Role</a>](#ansible-role)
-      * [<a href="#references">References</a>](#references-1)
+      * [<a href="#references">References</a>](#references)
 
 ---
 
@@ -48,6 +45,7 @@ Table of Contents
 
 * Debian 8 Jessie or Debian 9 Stretch OS Distro
 * PostgreSQL version 11
+* Zabbix version 3.4 or 4.0 (tested successfully on both)
 
 ---
 
@@ -121,6 +119,28 @@ $func$ LANGUAGE plpgsql;
 
 ---
 
+## [Time Series Partitioning](#time-series-partitioning)
+
+Partitioning syntax was introduced in PostgreSQL 10. It is very effective for INSERTs and large/slow `SELECT` queries, which makes it suitable for time series logging.
+
+### [PostgreSQL Default Partition](#postgresql-default-partition)
+
+With PostgreSQL version 11 it is possible to create a "default" partition. This stores rows that do not fall into any existing partition's range. This is ideal since the partitioned range might not include specific data which the default will then pick up. This is automatically done with `pg_partman`. From there one can delete all data from the table via the following example:
+
+```
+DELETE FROM public.history_p2018_11
+```
+
+### [Optional - BRIN versus Btree INDEXES](#optional--brin-versus-btree-indexes)
+
+With PostgreSQL 9.5 a new type of index, [BRIN (Block Range INdex)](https://www.postgresql.org/docs/9.5/brin-intro.html) was introduced. These indexes work best when the data on disk is sorted. Brin only stores min/max values for a range of blocks on disk, which allows them to be small, but which raises the cost for any lookup against the index. Each lookup that hits the index must read a range of pages from disk, so each hit becomes more expensive.
+
+Huge tables benefit from the BRIN index. Adding a BRIN index is fast and very easy and works well for the use case of time series data logging, though less well under intensive update. An INSERTs into BRIN indexes are specifically designed to **not** slow down as the table get bigger, so they perform much better than btree indexes.
+
+In PostgreSQL v11, partitioning offers automatic index creation. You simply create an index on the parent table, and Postgres will automatically create indexes on all child tables. This thus makes partition maintenance much easier!
+
+---
+
 ## [Prepare PostgreSQL Database](#prepare-postgresql-database)
 
 1. Download and install the [PostgreSQL Core Distribution](https://www.postgresql.org/download/) that supports Native Partitioning. As of this writing it is PostgreSQL v11.1.
@@ -155,29 +175,7 @@ postgres=# GRANT ALL PRIVILEGES ON DATABASE zabbix to zabbix;
 postgres=# \q
 ```
 
----
-
-## [Time Series Partitioning](#time-series-partitioning)
-
-Partitioning syntax was introduced in PostgreSQL 10. It is very effective for INSERTs and large/slow `SELECT` queries, which makes it suitable for time series logging.
-
-### [PostgreSQL Default Partition](#postgresql-default-partition)
-
-With PostgreSQL version 11 it is possible to create a "default" partition. This stores rows that do not fall into any existing partition's range. This is ideal since the partitioned range might not include specific data which the default will then pick up. This is automatically done with `pg_partman`. From there one can delete all data from the table via the following example:
-
-```
-DELETE FROM public.history_p2018_11
-```
-
-### [Optional - BRIN versus Btree INDEXES](#optional--brin-versus-btree-indexes)
-
-With PostgreSQL 9.5 a new type of index, [BRIN (Block Range INdex)](https://www.postgresql.org/docs/9.5/brin-intro.html) was introduced. These indexes work best when the data on disk is sorted. Brin only stores min/max values for a range of blocks on disk, which allows them to be small, but which raises the cost for any lookup against the index. Each lookup that hits the index must read a range of pages from disk, so each hit becomes more expensive.
-
-Huge tables benefit from the BRIN index. Adding a BRIN index is fast and very easy and works well for the use case of time series data logging, though less well under intensive update. An INSERTs into BRIN indexes are specifically designed to **not** slow down as the table get bigger, so they perform much better than btree indexes.
-
-In PostgreSQL v11, partitioning offers automatic index creation. You simply create an index on the parent table, and Postgres will automatically create indexes on all child tables. This thus makes partition maintenance much easier!
-
-### [CREATE TABLE](#create-table)
+### [Create Empty history* and trends* Tables](#create-table)
 
 On an empty database (you can create multiple database on the same server if you'd like or want to upgrade from version 9.x to 10/11) create the following tables for `history*` and `trends*`.
 
@@ -286,13 +284,13 @@ ALTER TABLE public.trends OWNER TO zabbix;
 ALTER TABLE public.trends_uint OWNER TO zabbix;
 ```
 
-## [PostgreSQL Partition Manager Extension (pg_partman)](#postgresql-partition-manager-extension)
+## [PostgreSQL Partition Manager Extension (pg_partman)](#postgresql-partition-manager-extension-pgpartman)
 
 pg_partman is an extensions to create and manage both time-based and serial-based table partition sets. Native partitioning in PostgreSQL 10 is supported as of pg_partman v3.0.1 and PostgreSQL 11 as of pg_partman v4.0.0.
 
 pg_partman works as an extension and it can be installed directly on top of PostgreSQL.
 
-### [Installing pg_partman](#installing-pg_partman)
+### [Installing pg_partman](#installing-pgpartman)
 
 Debian apt:
 
@@ -300,7 +298,7 @@ Debian apt:
 sudo apt install postgresql-11-partman
 ```
 
-### [postgresql.conf](#postgresql.conf)
+### [postgresql.conf](#postgresqlconf)
 
 `/etc/postgresql/11/main/conf.d/pgpartman.conf`
 
@@ -317,7 +315,7 @@ pg_partman_bgw.analyze = off
 pg_partman_bgw.jobmon = on
 ```
 
-Restart postgresql and in the logs you should see `pg_partman master background worker master process initialized with role zabbix`.
+Restart postgresql (`sudo systemctl restart postgresql.service`) and in the logs you should see `pg_partman master background worker master process initialized with role zabbix`.
 
 Connect as postgres user to Zabbix database and create the extensions as part of the `public` schema on the Zabbix database.
 
@@ -357,7 +355,7 @@ This can be changed by using the UPDATE command on the `partman.part_config` tab
 UPDATE partman.part_config SET premake = 7 WHERE parent_table = 'public.history_log';
 ```
 
-### [Deleting designated partitions](#deleting-designated-partitions)
+### [Deleting Designated Partitions](#deleting-designated-partitions)
 
 It is impossible to manually remove partitions, thus use `partman.part_config` table config:
 
@@ -371,7 +369,7 @@ Then execute maintenance procedure:
 SELECT partman.run_maintenance('public.history');
 ```
 
-### [Partition maintenance: Creating future partitions](#partition-maintenance-creating-future-partitions)
+### [Partition Maintenance: Creating Future Partitions](#partition-maintenance-creating-future-partitions)
 
 pg_partman has a function `run_maintenance` that allows one to automate the table maintenance.
 
@@ -383,7 +381,7 @@ SELECT run_maintenance(p_analyze := false);
 
 **Native partitioning can result in heavy locking and therefore it is recommended to set p_analyze to FALSE which will effectively disable analyze.**
 
-### [Partition maintenance - Dropping/expiring old partitions](#partition-maintenance-droppingexpiring-old-partitions)
+### [Partition Maintenance: Dropping/expiring old partitions](#partition-maintenance-droppingexpiring-old-partitions)
 
 To configure pg_partman to drop old partitions, update the `partman.part_config` tables:
 
@@ -404,7 +402,7 @@ UPDATE partman.part_config SET retention_keep_table = false, retention = '12 mon
 WHERE parent_table = 'public.trends_uint';
 ```
 
-Following this change, whenever:
+Following this change run the maintenance actively via SQL:
 
 ```
 SELECT partman.run_maintenance('public.history');
@@ -416,16 +414,9 @@ SELECT partman.run_maintenance('public.trends');
 SELECT partman.run_maintenance('public.trends_uint');
 ```
 
-### [Delete designated partitions](#delete-designated-partitions)
-
-```
-UPDATE partman.part_config SET retention = '7 day', retention_keep_table = false, retention_keep_index = false WHERE parent_table = 'public.history';
-select partman.run_maintenance('public.history');
-```
-
 ---
 
-### [Change Zabbix history tables from monthly to daily with pg_partman](#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman)
+## [Change Zabbix history tables from monthly to daily with pg_partman](#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman)
 
 
 * Originally we agreed to perform monthly partitions on the history* tables. But there is so much data being sent to Zabbix it increases the Zabbix database quickly. This will make scaling a problem in the future.
@@ -669,58 +660,59 @@ VACUUM ANALYZE history_text;
 
 Ensure `pg_partman_bgw` is set in `postgresql.conf` file.
 
-### [References](#references)
-
-* [Change already implemented PSQL 11 Native Partitioning from Monthly to Daily](https://github.com/pgpartman/pg_partman/issues/248)
-* [PostgreSQL Partition Manager Extension (`pg_partman`)](https://github.com/pgpartman/pg_partman/blob/master/doc/pg_partman.md)
-
 ---
 
-## [Zabbix Data Dump To New Database](#zabbix-data-dump-to-new-database)
+## [Zabbix Remote Data Dump](#zabbix-remote-data-dump)
 
 ### [pgdump/pgrestore Manual Mechanism](#pgdumppgrestore-manual-mechanism)
 
 On the old database, ensure `pg_hba.conf` file is set to allow connections from the new database.
 
 ```
-root# chown postgres:postgres /var/lib/backups/postgresql
-postgres$ time pg_dump -Fc --file=/var/backups/postgresql/zabbix.dump -d zabbix -h <hostname>
+# Note that the following commands are run on the new DB instance...
+root# mkdir -p /var/lib/backups/postgresql
+root# chown -R postgres:postgres /var/lib/backups/postgresql
+postgres$ time pg_dump -Fc --file=/var/backups/postgresql/zabbix.dump -d zabbix -h <OLD_ZABBIX_DATABASE>
 postgres# time pg_restore -Fc -j 8 -d zabbix /var/backups/postgresql/zabbix.dump
 ```
 
 ---
 
-## [Upgrade Zabbix 3.4 to 4.2 and move from PostgreSQL 9.6 to PostgreSQL 11](#upgrade-zabbix-34-postgresql-11)
+## [Upgrade Zabbix v3.4 to v4.2 while moving from PostgreSQL v9.6 to PostgreSQL v11](#upgrade-zabbix-v34-to-v42-while-moving-from-postgresql-v96-to-postgresql-v11)
 
-In my case I was at the situation to optimize DB and also considering, that some of the new features of Zabbix 4.2 are too tempting to stay with "just" 3.4 (Grafana like behaviour). This meant activity to set up a new DB server, migrate data to the new DB machine, as well as start new Zabbix server. Here is a short HOWTO on the SQL side how I did it.
+The following scenario addresses how to migrate from Zabbix version 3.4 to version 4.2 while also moving from PostgreSQL version 9.6 to version 11.
 
-Prepare the new Zabbix server, new virtual machine with new IP address (luckily I do have 2 IPs, one for live monitoring and second for the test Zabbix environment).
-Prepare the new SQL server, yet again new virtual machine (as already mentioned PostgreSQL 11). [Install the pg_partman](#postgresql-partition-manager-extension) extension as described above.
+**Requirements**
+* Debian 8 Jessie or Debian 9 Stretch OS Distro
+* Old PostgreSQL instance running version 9.6.
+* New PostgreSQL instance running version 11.
 
-On the new SQL machine just create the user and database as needed for the Zabbix data migration.
+Prepare the new PostgreSQL instance for the Zabbix 4.2 database as described in the [previous section](#prepare-postgresql-database), as well as [follow the steps for installing the pg_partman extension](#installing-pgpartman).
 
-```
-createuser --pwprompt zabbix
-createdb -O zabbix -E Unicode -T template0 zabbix
-```
+### [Migrate the Configuration Data](#migrate-the-configuration-data)
 
-### [SQL Config Zabbix 3.4 migration](#zabbix-3-4-config-migration)
-
-On the new SQL server create a new directory and dump the config data from the old SQL. In fact it is not just config, but the command will exclude tables, which are usually the largest. This will keep only the "small" ones to make first step much faster. As I did not want to keep the disk trashing I used the dump compression via `-j 4`. Also since I want to restore data in parallel later on, I choose the directory format (`-Fd`).
+On the old database, ensure `pg_hba.conf` file is set to allow connections from the new database.
 
 ```
-pg_dump -v -Fd -j 4 -d zabbix -h <OLD_ZABBIX_SQL_IP> -U zabbix --inserts -Z 4 -f sql_dump-SMALL_TABLES-for-restore --exclude-table=history* --exclude-table=trends*
+# Note that the following commands are run on the new DB instance...
+root# mkdir -p /var/lib/backups/postgresql
+root# chown -R postgres:postgres /var/lib/backups/postgresql
+postgres$ time pg_dump -Fd -j 4 -d zabbix -h <OLD_ZABBIX_DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-configuration-<DATE>  --exclude-table=history* --exclude-table=trends*
+postgres# time pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-configuration-<DATE>
 ```
 
-Now restore the tables to the new SQL machine. I have chosen to use the user `zabbix` for the data import to be on the safe side.
+* In order to prevent the disk from trashing you can use the compression `pg_dump` option `-j 4`.
+* Additionally using the custom directory format option `-Fd` helps restore data in parallel which is also faster.
 
-```
-pg_restore -v -Fd -j 4 -v -d zabbix -h 127.0.0.1 -U zabbix sql_dump-SMALL_TABLES-for-restore
-```
+At this point you will have all tables except `history*` and `trends*` on the new Zabbix instance.
 
-At this point you have all tables but history* and trends* tables created in the new SQL. Prepare missing history* and trends* tables to the new SQL as specified at [Create Partitioned Tables](#create-partitioned-tables), adjust parameters of those tables according to your needs (retention etc).
+You can then prepare the missing `history*` and `trends*` tables by following the ["create partitioned tables" section](#create-partitioned-tables) outlined above.
 
-Once finished, if you want and your environment enables that you can already start you new Zabbix server pointing to this new SQL DB. Database has all the needed tables and beside that config data as well as some of the production data. All what is missing are just data from `history*` and `trends*` tables. So if you decide to start the zabbix server, you should see in the `zabbix_server.log` migration procedure taking place, lines like this (as already mentioned I was migrating from the Zabbix 3.4 to 4.2, hence the database versions in the logs).
+Once you finish the procedure of importing the configuration data from the old instance to the new instance **AND** you created the partitioned tables you can point the Zabbix server to the new DB instance.
+
+Thus this minimizes downtime of the Zabbix environment as we can import the older `history*` and `trends*` data later while Zabbix is actively running.
+
+Once you start the Zabbix Server you should see the following lines in the `zabbix_server.log` file verifying that the upgrade has completed successfully.
 
 ```
   6330:20190512:020451.749 using configuration file: /etc/zabbix/zabbix_server.conf
@@ -738,60 +730,29 @@ Once finished, if you want and your environment enables that you can already sta
   ...
 ```
 
-This is the automatic procedure of DB schema upgrade from the old zabbix to the new version.
+### [Migrate the old history* and trends* data](#migrate-the-old-history-and-trends-data)
 
-### [SQL data from Zabbix 3.4 migration](#zabbix-3-4-data-migration)
-
-We probably do not want to lose our `history*` and `trends*` data from the old database. My goal was also to have as short downtime as possible. So here come the more intricate and time consuming part about the whole data migration process.
-
-Procedure for migration of the `history*` tables is quite straigth forward.
+In order to migrate the old data from `history*` and `trends*` data with as minimal time as possible perform the following `pg_dump/restore` command **on the new DB instance**:
 
 ```
-pg_dump -v -Fd -j 4 -d zabbix -h <OLD_ZABBIX_SQL_IP> -U zabbix -Z 4 -f sql_dump-LARGE_TABLES-HISTORY-for-restore --table=history*
-pg_restore -v -Fd -j 4 -d zabbix sql_dump-LARGE_TABLES-HISTORY-for-restore
-```
-You can use the default `COPY` procedure, as there are no constrain on the tables. So eventually it is allowed to insert all the data, even the duplicate ones, to the `history*` tables. Those will live there only few days and expire eventually (14 in my case).
-
-For the `trends*` tables this is more difficult. Since there is a unique constrain, it is not possible to use `COPY` approach because it will most likely fail and no data will be inserted (`COPY` is just one big transaction). Alternate approach is needed then.
-
-```
-pg_dump -v -Fd -j 4 -d zabbix -h zabbix1 -U zabbix --inserts -f sql_dump-LARGE_TABLES-TRENDS-INSERTS-for-restore --table=trends*
+# Note that the following commands are run on the new DB instance...
+postgres$ time pg_dump -Fd -j 4 -d zabbix -h <OLD_ZABBIX_DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-history-<DATE> --table=history*
+postgres# time pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-history-<DATE>
 ```
 
-Note `--insert` option, which creates dump files, where each table row is extra INSERT. Now you are set and you may start the `pg_restore`. If you do be prepared, that it takes ages. To speed things a lot I turned off the fsync in `/etc/postgresql/11/main/postgresql.conf` (please note, that my zabbix server was already running and collecting data).
+You can use the default `COPY` procedure (not using the `--inserts` option...), as there are no constraints on the tables. Thus it is allowed to insert all the data, even the duplicate ones, to the `history*` tables. Those will eventually be dropped via partitioning.
 
-:warning: What I did was a little bit on the edge as turning `fsync=off` might have some unwanted results in case of the database failure!!! So use this with some extra caution.
-
-```
-fsync = off                             # flush data to disk for crash safety
-```
-
-Just reload the PostgreSQL. There is no need to restart, this option takes effect just with reload. Now you can start the import procedure.
+For the `trends*` tables it is a bit more complex. Since there are unique constraints on those tables, it is not possible to use the `COPY` approach because it will most likely fail and no data will be inserted (`COPY` is just one big transaction). Therefore we can use the `--inserts` option for `pg_dump`, which creates dump files, where each table row is an extra INSERT. You can use the following approach:
 
 ```
-pg_restore -v -Fd -j 4 -d zabbix sql_dump-LARGE_TABLES-TRENDS-INSERTS-for-restore
+# Note that the following commands are run on the new DB instance...
+postgres$ time pg_dump -Fd -j 4 -d zabbix -h <OLD_ZABBIX_DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-trends-<DATE> --table=trends*
+postgres# time pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-trends-<DATE>
 ```
 
-I was importing about 49 million records for about 3 hours. The import may finish with some error reports, but you can ignore those, as majority of the data will be inserted and only those considered as duplicates will fail.
+For **large Zabbix databases** the amount of data to restore could be exponential (Terabytes worth of trends* data) and take a very long time (hours). A use case mentioned by someone else was to change the parameter in the `postgresql.conf` file `fsync = off` (:scream:) (this just requires a reload of postgresql and not a restart of the cluster). **This is very, very risky** as turning this off can cause unrecoverable data corruption. As an end result turning off _fsync_ helped 49 million records to dump within 3 hours.
 
-Turn on the fsync in `/etc/postgresql/11/main/postgresql.conf`, or just delete this config line in `/etc/postgresql/11/main/postgresql.conf` as `fsync=on` is the default, so you are on the safe side once again.
-
-```
-fsync = on                             # flush data to disk for crash safety
-```
-
-Reload PostgreSQL and you should be ready for the full production.
-
-Clean up, change of the IPs on newly provisioned Zabbix server, decommission the old one etc. as needed.
-
-#### [SideNote]
-
-You may come up with deviations of the migration strategy, such as, before starting the new zabbix server create a dump the LARGE_TABLES-TRENDS using COPY, wait some time (2 hours might be enough), so there should be no issue with data constraints and just then start new zabbix server. Again, first start of Zabbix server with this new database will convert the database schema, tables and trends as well as starts INSERTing new data. As there should be no duplicate keys on `trends*` values, it may be possible to restore tables with success and not having to turn `fsync=off`, but ... if not it will roll back all the data inserted so far.
-
-```
-pg_dump -v -Fd -j 4 -d zabbix -h zabbix1 -U zabbix -f sql_dump-LARGE_TABLES-TRENDS-for-restore --table=trends*
-```
-
+:exclamation: As always please test this properly before implementing this procedure in a production instance.
 
 ---
 
@@ -949,6 +910,8 @@ For details please view [ansible|zabbix.pgpartman](ansible/zabbix.pgpartman/).
 * [PostgreSQL Official Documentation | Table Partitioning](https://www.postgresql.org/docs/current/ddl-partitioning.html)
 * [PostgreSQL Official Documentation | CREATE TABLE](https://www.postgresql.org/docs/current/sql-createtable.html)
 * [PostgreSQL Official Documentation | Logical Replication | Restrictions](https://www.postgresql.org/docs/current/logical-replication-restrictions.html)
+* [PostgreSQL Official Documentation | pg_dump](https://www.postgresql.org/docs/current/app-pgdump.html)
+* [PostgreSQL Official Documentation | Write Ahead Log](https://www.postgresql.org/docs/current/runtime-config-wal.html)
 * [pgBarman](https://www.pgbarman.org/)
 * [pgbench](https://www.postgresql.org/docs/current/pgbench.html)
 * [pgBouncer](https://pgbouncer.github.io/)
@@ -959,3 +922,5 @@ For details please view [ansible|zabbix.pgpartman](ansible/zabbix.pgpartman/).
 * [Zabbix Documentation | History and Trends](https://www.zabbix.com/documentation/current/manual/config/items/history_and_trends)
 * [Tuning PostgreSQL with pgbench](https://blog.codeship.com/tuning-postgresql-with-pgbench/)
 * [PostgreSQL Logical Replication Gotchas](https://pgdash.io/blog/postgres-replication-gotchas.html)
+* [Change already implemented PSQL 11 Native Partitioning from Monthly to Daily](https://github.com/pgpartman/pg_partman/issues/248)
+* [PostgreSQL Partition Manager Extension (`pg_partman`)](https://github.com/pgpartman/pg_partman/blob/master/doc/pg_partman.md)
