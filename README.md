@@ -750,7 +750,7 @@ postgres$ time pg_dump -Fd -j 4 -d zabbix -h <OLD_ZABBIX_DATABASE> -U zabbix --i
 postgres# time pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-trends-<DATE>
 ```
 
-For **large Zabbix databases** the amount of data to restore could be exponential (Terabytes worth of trends* data) and take a very long time (hours). A use case mentioned by someone else was to change the parameter in the `postgresql.conf` file `fsync = off` (:scream:) (this just requires a reload of postgresql and not a restart of the cluster). **This is very, very risky** as turning this off can cause unrecoverable data corruption. As an end result turning off _fsync_ helped 49 million records to dump within 3 hours.
+For **large Zabbix databases** the amount of data to restore could be exponential (Terabytes worth of trends* data) and take a very long time (hours). A use case mentioned by someone else was to change the parameter in the `postgresql.conf` file `fsync = off` (:scream:) (this just requires a reload of postgresql and not a restart of the cluster). **This is very, very risky** as turning this off can cause unrecoverable data corruption. As an end result turning off _fsync_ helped 49 million records to restore within 3 hours.
 
 :exclamation: As always please test this properly before implementing this procedure in a production instance.
 
