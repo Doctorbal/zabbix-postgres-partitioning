@@ -670,8 +670,8 @@ On the old database, ensure `pg_hba.conf` file is set to allow connections from 
 
 ```
 # Note that the following commands are run on the new DB instance...
-root# mkdir -p /var/lib/backups/postgresql
-root# chown -R postgres:postgres /var/lib/backups/postgresql
+root# mkdir -p /var/backups/postgresql
+root# chown -R postgres:postgres /var/backups/postgresql
 postgres$ time pg_dump -Fc --file=/var/backups/postgresql/zabbix.dump -d zabbix -h <OLD_ZABBIX_DATABASE>
 postgres# time pg_restore -Fc -j 8 -d zabbix /var/backups/postgresql/zabbix.dump
 ```
@@ -695,8 +695,8 @@ On the old database, ensure `pg_hba.conf` file is set to allow connections from 
 
 ```
 # Note that the following commands are run on the new DB instance...
-root# mkdir -p /var/lib/backups/postgresql
-root# chown -R postgres:postgres /var/lib/backups/postgresql
+root# mkdir -p /var/backups/postgresql
+root# chown -R postgres:postgres /var/backups/postgresql
 postgres$ time pg_dump -Fd -j 4 -d zabbix -h <OLD_ZABBIX_DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-configuration-<DATE>  --exclude-table=history* --exclude-table=trends*
 postgres# time pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-configuration-<DATE>
 ```
