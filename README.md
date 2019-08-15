@@ -374,7 +374,7 @@ SELECT partman.run_maintenance('public.history');
 pg_partman has a function `run_maintenance` that allows one to automate the table maintenance.
 
 ```
-SELECT run_maintenance(p_analyze := false);
+SELECT partman.run_maintenance(p_analyze := false);
 
  -- note: disabling analyze is recommended for native partitioning due to aggressive locks
 ```
