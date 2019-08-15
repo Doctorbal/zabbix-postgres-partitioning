@@ -45,7 +45,7 @@
 ### The scripts are intended to be run on an empty database for initial deployment.
 ### You can then pg_dump the previous data or import the Zabbix schema if building
 ### a new database. Thus the variable zabbix_database_partitioning_scripts should
-### shoult be set to "false" and only set to "true" when initially deploying the scripts.
+### be set to "false" and only set to "true" when initially deploying the scripts.
 - name: "Debian | Step 1 - create-schema-pgpartman.sql"
   shell: "psql -d {{ pgpartman_database }} < {{ postgresql_home_directory }}/create-schema-pgpartman.sql"
   args:
