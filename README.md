@@ -23,7 +23,9 @@ Table of Contents
          * [<a href="#deleting-designated-partitions">Deleting Designated Partitions</a>](#deleting-designated-partitions)
          * [<a href="#partition-maintenance-creating-future-partitions">Partition Maintenance: Creating Future Partitions</a>](#partition-maintenance-creating-future-partitions)
          * [<a href="#partition-maintenance-droppingexpiring-old-partitions">Partition Maintenance: Dropping/expiring old partitions</a>](#partition-maintenance-droppingexpiring-old-partitions)
-      * [<a href="#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman">Change Zabbix history tables from monthly to daily with pg_partman</a>](#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman)
+      * [<a href="#troubleshooting">Troubleshooting</a>](#troubleshooting)
+         * [zabbix database user does not have appropriate permissions](#zabbix-database-user-does-not-have-appropriate-permissions)
+      * [<a href="#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman">Change Zabbix history tables from monthly to daily with pg_partman</a>](#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman)
       * [<a href="#zabbix-remote-data-dump">Zabbix Remote Data Dump</a>](#zabbix-remote-data-dump)
          * [<a href="#pgdumppgrestore-manual-mechanism">pgdump/pgrestore Manual Mechanism</a>](#pgdumppgrestore-manual-mechanism)
       * [<a href="#upgrade-zabbix-v34-to-v42-while-moving-from-postgresql-v96-to-postgresql-v11">Upgrade Zabbix v3.4 to v4.2 while moving from PostgreSQL v9.6 to PostgreSQL v11</a>](#upgrade-zabbix-v34-to-v42-while-moving-from-postgresql-v96-to-postgresql-v11)
@@ -92,13 +94,10 @@ Before performing partitioning in Zabbix, several aspects must be considered:
 
 1. Time partitioning will be used for table partitioning.
 2. Housekeeper will not be needed for some data types anymore. This Zabbix functionality for clearing old history and trend data from the database can be controlled in **Administration | General Housekeeper**.
-3. The values of History storage period (in days) and Trend storage period (in days) fields in item configuration will not be used anymore as old data will be cleared by the range i.e. the whole partition. They can (and should be) overridden in **Administration | General Housekeeper** - the period should match the period for which we are expecting to keep the
-partitions which is **monthly**
-4. Even with the housekeeping for items disabled, Zabbix server and web interface will keep
-writing housekeeping information for future use into the housekeeper table. To avoid this,
-you can add trigger for this table **after you add the data there**:
+3. The values of History storage period (in days) and Trend storage period (in days) fields in item configuration will not be used anymore as old data will be cleared by the range i.e. the whole partition. They can (and should be) overridden in **Administration | General Housekeeper** - the period should match the period for which we are expecting to keep the partitions which is **monthly**
+4. Even with the housekeeping for items disabled, Zabbix server and web interface will keep writing housekeeping information for future use into the housekeeper table. To avoid this, you can add trigger for this table **after you add the data there** (ensure you connect as the `zabbix` user to the `zabbix` database via the following command `$ sudo -u zabbix psql zabbix`):
 
-```
+```SQL
 CREATE TRIGGER housekeeper_blackhole
     BEFORE INSERT ON housekeeper
     FOR EACH ROW
@@ -107,7 +106,7 @@ CREATE TRIGGER housekeeper_blackhole
 
 With the following procedure:
 
-```
+```SQL
 CREATE OR REPLACE FUNCTION housekeeper_blackhole()
     RETURNS trigger AS
 $func$
@@ -127,7 +126,7 @@ Partitioning syntax was introduced in PostgreSQL 10. It is very effective for IN
 
 With PostgreSQL version 11 it is possible to create a "default" partition. This stores rows that do not fall into any existing partition's range. This is ideal since the partitioned range might not include specific data which the default will then pick up. This is automatically done with `pg_partman`. From there one can delete all data from the table via the following example:
 
-```
+```SQL
 DELETE FROM public.history_p2018_11
 ```
 
@@ -154,38 +153,39 @@ In PostgreSQL v11, partitioning offers automatic index creation. You simply crea
 
 ### [Install PostgreSQL v11](#install-postgresql)
 
-```
-wget -q https://www.postgresql.org/media/keys/ACCC4CF8.asc -O - | sudo apt-key add -
-sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
-sudo apt update
-sudo apt install postgresql-11
-sudo passwd postgres
-sudo su - postgres
-ssh-keygen # passwordless
+Install PostgreSQL using the following commands on a Debian OS distro.
+
+```bash
+$ wget -q https://www.postgresql.org/media/keys/ACCC4CF8.asc -O - | sudo apt-key add -
+$ sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
+$ sudo apt update
+$ sudo apt install postgresql-11
 ```
 
 ### [Prepare Zabbix Database](#prepare-zabbix-database)
 
+Create a database user with permissions to create database objects. Ensure the created user (`zabbix`) is the owner of the `zabbix` database (`-O zabbix`).
+
+```bash
+$ sudo -u postgres createuser --pwprompt zabbix
+$ sudo -u postgres createdb -O zabbix zabbix
 ```
-sudo -i -u postgres
-postgres@zbxdatabase:~$ createuser -P -s -e zabbix
-postgres@zbxdatabase:~$ psql
-postgres=# create database zabbix;
-postgres=# GRANT ALL PRIVILEGES ON DATABASE zabbix to zabbix;
-postgres=# \q
-```
+
+Do not import the initial schema as creating the partitions will cause issues.
 
 ### [Create Empty history* and trends* Tables](#create-table)
 
-On an empty database (you can create multiple database on the same server if you'd like or want to upgrade from version 9.x to 10/11) create the following tables for `history*` and `trends*`.
+On an empty `zabbix` database (you can create multiple database on the same server if you'd like or want to upgrade from version 9.x to 10/11) create the following tables for `history*` and `trends*`.
 
-```
-sudo -su postgres psql -d zabbix
+First connecto the `zabbix` database as the `postgres` user with the following command
+
+```bash
+$ sudo -u zabbix psql zabbix
 ```
 
-Then run the following commands
+Then run the following SQL commands
 
-```
+```SQL
 -- history
 CREATE TABLE public.history
 (
@@ -270,20 +270,6 @@ CREATE TABLE public.trends_uint
 ) PARTITION BY RANGE (clock);
 ```
 
----
-
-Optionally depending on the role you used run
-
-```
-ALTER TABLE public.history OWNER TO zabbix;
-ALTER TABLE public.history_log OWNER TO zabbix;
-ALTER TABLE public.history_str OWNER TO zabbix;
-ALTER TABLE public.history_text OWNER TO zabbix;
-ALTER TABLE public.history_uint OWNER TO zabbix;
-ALTER TABLE public.trends OWNER TO zabbix;
-ALTER TABLE public.trends_uint OWNER TO zabbix;
-```
-
 ## [PostgreSQL Partition Manager Extension (pg_partman)](#postgresql-partition-manager-extension-pgpartman)
 
 pg_partman is an extensions to create and manage both time-based and serial-based table partition sets. Native partitioning in PostgreSQL 10 is supported as of pg_partman v3.0.1 and PostgreSQL 11 as of pg_partman v4.0.0.
@@ -294,17 +280,23 @@ pg_partman works as an extension and it can be installed directly on top of Post
 
 Debian apt:
 
-```
-sudo apt install postgresql-11-partman
+```bash
+$ sudo apt install postgresql-11-partman
 ```
 
 ### [postgresql.conf](#postgresqlconf)
 
-`/etc/postgresql/11/main/conf.d/pgpartman.conf`
+Create the following configuration file in the proper postgresql directory:
 
+```bash
+$ vim /etc/postgresql/11/main/conf.d/pgpartman.conf
 ```
+
+Add the following information there:
+
+```conf
 ### General
-shared_preload_libraries = 'pg_stat_statements, pg_partman_bgw' # (change requires restart)
+shared_preload_libraries = 'pg_partman_bgw' # (this change requires restart)
 
 ### Partitioning & pg_partman settings
 enable_partition_pruning = on
@@ -315,57 +307,143 @@ pg_partman_bgw.analyze = off
 pg_partman_bgw.jobmon = on
 ```
 
-Restart postgresql (`sudo systemctl restart postgresql.service`) and in the logs you should see `pg_partman master background worker master process initialized with role zabbix`.
+Restart postgresql (`sudo systemctl restart postgresql.service`) and in the logs you should see:
 
-Connect as postgres user to Zabbix database and create the extensions as part of the `public` schema on the Zabbix database.
+```logs
+pg_partman master background worker master process initialized with role zabbix
+```
 
+Connect as `zabbix` database user to the `zabbix` database and create the `pg_partman` extension as part of the `public` schema on the `zabbix` database.
+
+```bash
+$ sudo -u zabbix psql zabbix
 ```
-sudo -su postgres psql -d zabbix
-```
+
 Then create the SCHEMA and EXTENSION:
-```
+
+```SQL
 CREATE SCHEMA partman;
 CREATE EXTENSION pg_partman schema partman;
 ```
 
-Optionally depending on the user you used for this operation you need to set the right access right to your zabbix role, eg.
-```
-GRANT USAGE ON SCHEMA partman TO zabbix;
-GRANT SELECT ON ALL TABLES IN SCHEMA partman TO zabbix;
-GRANT DELETE ON ALL TABLES IN SCHEMA partman TO zabbix;
+Ensure the `zabbix` database user can execute all functions, procedures on the `partman` SCHEMA with the following SQL commands. The following commands should be run by a **superuser** of the database cluster.
+
+```SQL
+GRANT ALL ON SCHEMA partman TO zabbix;
+GRANT ALL ON ALL TABLES IN SCHEMA partman TO zabbix;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA partman TO zabbix;
+GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO zabbix;
 ```
 
 ### [Create Partitioned Tables](#create-partitioned-tables)
 
-Perform the SQL queries **on the Zabbix database** (otherwise it won't find the functions in another database where the extension was added) which will target the pg_partman functions uploaded
+Perform the SQL queries **on the `zabbix` database as the `zabbix` user** (otherwise it won't find the functions in another database where the extension was added) which will target the pg_partman functions uploaded:
 
-```
-select partman.create_parent('public.history', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_uint', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_str', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_text', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_log', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
-select partman.create_parent('public.trends', 'clock', 'native', 'monthly', null, 12, 'on', null, true, 'seconds');
-select partman.create_parent('public.trends_uint', 'clock', 'native', 'monthly', null, 12, 'on', null, true, 'seconds');
+First connect to the `zabbix` database as the `zabbix` user:
+
+```bash
+$ sudo -u zabbix psql zabbix
 ```
 
-This can be changed by using the UPDATE command on the `partman.part_config` table; for e.g.:
+Then run the following SQL commands:
 
+```SQL
+SELECT partman.create_parent('public.history', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_uint', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_str', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_text', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_log', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.trends', 'clock', 'native', 'monthly', null, 12, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.trends_uint', 'clock', 'native', 'monthly', null, 12, 'on', null, true, 'seconds');
 ```
-UPDATE partman.part_config SET premake = 7 WHERE parent_table = 'public.history_log';
+
+You should verify that the tables have ownership `zabbix`:
+
+```SQL
+\d
+```
+
+Example output:
+
+```SQL
+                    List of relations
+ Schema |            Name            |   Type   | Owner
+--------+----------------------------+----------+--------
+ public | history                    | table    | zabbix
+ public | history_default            | table    | zabbix
+ public | history_log                | table    | zabbix
+ public | history_log_default        | table    | zabbix
+ public | history_log_p2019_08_24    | table    | zabbix
+ public | history_log_p2019_08_25    | table    | zabbix
+ public | history_log_p2019_08_26    | table    | zabbix
+ public | history_log_p2019_08_27    | table    | zabbix
+ public | history_log_p2019_08_28    | table    | zabbix
+ public | history_log_p2019_08_29    | table    | zabbix
+ public | history_log_p2019_08_30    | table    | zabbix
+ public | history_log_p2019_08_31    | table    | zabbix
+ public | history_log_p2019_09_01    | table    | zabbix
+ public | history_log_p2019_09_02    | table    | zabbix
+ public | history_log_p2019_09_03    | table    | zabbix
+ public | history_log_p2019_09_04    | table    | zabbix
+ public | history_log_p2019_09_05    | table    | zabbix
+ public | history_log_p2019_09_06    | table    | zabbix
+ public | history_log_p2019_09_07    | table    | zabbix
+ public | history_p2019_08_24        | table    | zabbix
+ public | history_p2019_08_25        | table    | zabbix
+ public | history_p2019_08_26        | table    | zabbix
+ public | history_p2019_08_27        | table    | zabbix
+ public | history_p2019_08_28        | table    | zabbix
+ public | history_p2019_08_29        | table    | zabbix
+ public | history_p2019_08_30        | table    | zabbix
+ public | history_p2019_08_31        | table    | zabbix
+ public | history_p2019_09_01        | table    | zabbix
+ public | history_p2019_09_02        | table    | zabbix
+ public | history_p2019_09_03        | table    | zabbix
+ public | history_p2019_09_04        | table    | zabbix
+ public | history_p2019_09_05        | table    | zabbix
+ public | history_p2019_09_06        | table    | zabbix
+ public | history_p2019_09_07        | table    | zabbix
+ public | history_str                | table    | zabbix
+ public | history_str_default        | table    | zabbix
+ public | history_str_p2019_08_24    | table    | zabbix
+ public | history_str_p2019_08_25    | table    | zabbix
+ public | history_str_p2019_08_26    | table    | zabbix
+ public | history_str_p2019_08_27    | table    | zabbix
+ public | history_str_p2019_08_28    | table    | zabbix
+ public | history_str_p2019_08_29    | table    | zabbix
+ public | history_str_p2019_08_30    | table    | zabbix
+ public | history_str_p2019_08_31    | table    | zabbix
+ public | history_str_p2019_09_01    | table    | zabbix
+ public | history_str_p2019_09_02    | table    | zabbix
+ public | history_str_p2019_09_03    | table    | zabbix
+ public | history_str_p2019_09_04    | table    | zabbix
+ public | history_str_p2019_09_05    | table    | zabbix
+ public | history_str_p2019_09_06    | table    | zabbix
+ public | history_str_p2019_09_07    | table    | zabbix
+....
+....
+....
 ```
 
 ### [Deleting Designated Partitions](#deleting-designated-partitions)
 
-It is impossible to manually remove partitions, thus use `partman.part_config` table config:
+It is impossible to manually remove partitions. Instead `UPDATE` the table `partman.part_config` table config.
 
+Connect via `zabbix` user to the `zabbix` database:
+
+```bash
+$ sudo -u zabbix psql zabbix
 ```
+
+Update the `partman.part_config` table:
+
+```SQL
 UPDATE partman.part_config set retention = '30 day', retention_keep_table = false, retention_keep_index = false WHERE parent_table = 'public.history';
 ```
 
 Then execute maintenance procedure:
 
-```
+```SQL
 SELECT partman.run_maintenance('public.history');
 ```
 
@@ -373,7 +451,7 @@ SELECT partman.run_maintenance('public.history');
 
 pg_partman has a function `run_maintenance` that allows one to automate the table maintenance.
 
-```
+```SQL
 SELECT partman.run_maintenance(p_analyze := false);
 
  -- note: disabling analyze is recommended for native partitioning due to aggressive locks
@@ -383,9 +461,15 @@ SELECT partman.run_maintenance(p_analyze := false);
 
 ### [Partition Maintenance: Dropping/expiring old partitions](#partition-maintenance-droppingexpiring-old-partitions)
 
-To configure pg_partman to drop old partitions, update the `partman.part_config` tables:
+To configure pg_partman to drop old partitions, update the `partman.part_config` tables connected as the `zabbix` user:
 
+```bash
+$ sudo -u zabbix psql zabbix
 ```
+
+Then run the following commands:
+
+```SQL
 UPDATE partman.part_config SET retention_keep_table = false, retention = '7 day'
 WHERE parent_table = 'public.history';
 UPDATE partman.part_config SET retention_keep_table = false, retention = '7 day'
@@ -404,7 +488,7 @@ WHERE parent_table = 'public.trends_uint';
 
 Following this change run the maintenance actively via SQL:
 
-```
+```SQL
 SELECT partman.run_maintenance('public.history');
 SELECT partman.run_maintenance('public.history_uint');
 SELECT partman.run_maintenance('public.history_str');
@@ -416,12 +500,28 @@ SELECT partman.run_maintenance('public.trends_uint');
 
 ---
 
+## [Troubleshooting](#troubleshooting)
+
+### zabbix database user does not have appropriate permissions
+
+Ensure that the `zabbix` user is the owner of all tables in the `zabbix` database.
+
+You can use the [change-zbxdb-table-ownership.sh shell script](files/change-zbxdb-table-ownership.sh) to change the ownership of all zabbix tables easily.
+
+```bash
+$ sudo vim /var/lib/postgresql/change-zbxdb-table-ownership.sh
+# [add script output](files/change-zbxdb-table-ownership.sh)
+$ sudo chmod +x /var/lib/postgresql/change-zbxdb-table-ownership.sh zabbix zabbix
+$ sudo -u postgres /var/lib/postgresql/change-zbxdb-table-ownership.sh zabbix zabbix
+```
+
+---
+
 ## [Change Zabbix history tables from monthly to daily with pg_partman](#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman)
 
 
-* Originally we agreed to perform monthly partitions on the history* tables. But there is so much data being sent to Zabbix it increases the Zabbix database quickly. This will make scaling a problem in the future.
-* Although we can keep attaching disks the simple, scalable and permanent solution is to implement "Daily" partitions on all history* tables.
-* Currently (20190212) the partitioned tables for history* are based on monthly partitions.
+* Originally I performed monthly partitions on the history* tables. But there is so much data being sent to Zabbix it increases the Zabbix database quickly. This will make scaling a problem in the future.
+* Although I can keep attaching disks the simple, scalable and permanent solution is to implement "Daily" partitions on all history* tables.
 * The Zabbix Consultants recommend using daily partitions no longer than 7 days previously. Additionally the Zabbix Official Documentation clarifies this in detail - https://www.zabbix.com/documentation/current/manual/config/items/history_and_trends
 * The Zabbix Housekeeper, based on the rule set in Administration | General | Housekeeping to 7 days and 365 days respectively for history* and trends* data. Thus there is NO POINT IN RETAINING LONGER THAN 7 DAYS OF HISTORY IF ALREADY SPECIFIED IN THE FRONTEND.
 * https://github.com/pgpartman/pg_partman/issues/248
@@ -431,7 +531,9 @@ SELECT partman.run_maintenance('public.trends_uint');
 1. Set 5 hour maintenance window. Take a snapshot of the database. pg_dump remotely the database and have backups upon backups...
 2. Stop NGINX GUI, then Zabbix Server.
 3. Kill all connections to the database.
-```
+4. Ensure all SQL commands are run as `zabbix` user (`$ sudo -u zabbix psql zabbix`).
+
+```SQL
 -- view connections
 SELECT sum(numbackends) FROM pg_stat_database;
 
@@ -446,7 +548,7 @@ WHERE pg_stat_activity.datname = 'zabbix'
 
 _Objective_: changing the following example table (plus 4 other tables ~10GGB each) from monthly to daily partitions while minimizing downtime and data loss.
 
-```
+```SQL
 zabbix=# \d+ history
                                      Table "public.history"
  Column |     Type      | Collation | Nullable | Default | Storage | Stats target | Description
@@ -469,10 +571,11 @@ Partitions: history_p2019_01 FOR VALUES FROM (1546300800) TO (1548979200),
 ```
 
 Procedure:
-00. Delete data older than 7 days. This will simplify and speed up the moving process.
 
-```
-/* The following is just an example of an epoch timestamp 7 days out from initiall creating this procedure - https://www.epochconverter.com/ ...
+0. Delete data older than 7 days. This will simplify and speed up the moving process.
+
+```SQL
+/* The following is just an example of an epoch timestamp 7 days out from initiall creating this procedure - https://www.epochconverter.com/ ... */
 delete FROM history where age(to_timestamp(history.clock)) > interval '7 days';
 delete FROM history_uint where age(to_timestamp(history_uint.clock)) > interval '7 days' ;
 delete FROM history_str where age(to_timestamp(history_str.clock)) > interval '7 days' ;
@@ -480,10 +583,10 @@ delete FROM history_log where age(to_timestamp(history_log.clock)) > interval '7
 delete FROM history_text where age(to_timestamp(history_text.clock)) > interval '7 days' ;
 ```
 
-0. Stop pg_partman from running the dynamic background worker to perform table maintenance on the `history*` tables in the `partman.part_config` column used by the maintenance
+1. Stop pg_partman from running the dynamic background worker to perform table maintenance on the `history*` tables in the `partman.part_config` column used by the maintenance
 
 
-```
+```SQL
 UPDATE partman.part_config SET automatic_maintenance = 'off' WHERE parent_table = 'public.history';
 UPDATE partman.part_config SET automatic_maintenance = 'off' WHERE parent_table = 'public.history_uint';
 UPDATE partman.part_config SET automatic_maintenance = 'off' WHERE parent_table = 'public.history_str';
@@ -491,10 +594,10 @@ UPDATE partman.part_config SET automatic_maintenance = 'off' WHERE parent_table 
 UPDATE partman.part_config SET automatic_maintenance = 'off' WHERE parent_table = 'public.history_text';
 ```
 
-1. Create a table similar to the one being unpartitioned. For e.g.:
+2. Create a table similar to the one being unpartitioned. For e.g.:
 
 
-```
+```SQL
 -- history_moved
 CREATE TABLE public.history_moved
 (
@@ -557,17 +660,17 @@ CREATE INDEX history_text_moved_1 ON public.history_text_moved USING BRIN (itemi
 
 Then run
 
-```
-select partman.create_parent('public.history_moved', 'clock', 'native', 'monthly', null, 1, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_uint_moved', 'clock', 'native', 'monthly', null, 1, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_str_moved', 'clock', 'native', 'monthly', null, 1, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_log_moved', 'clock', 'native', 'monthly', null, 1, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_text_moved', 'clock', 'native', 'monthly', null, 1, 'on', null, true, 'seconds');
+```SQL
+SELECT partman.create_parent('public.history_moved', 'clock', 'native', 'monthly', null, 1, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_uint_moved', 'clock', 'native', 'monthly', null, 1, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_str_moved', 'clock', 'native', 'monthly', null, 1, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_log_moved', 'clock', 'native', 'monthly', null, 1, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_text_moved', 'clock', 'native', 'monthly', null, 1, 'on', null, true, 'seconds');
 ```
 
-2. Call the `partman.undo_partition_proc()` function on the table wanting to be unpartitioned. This seems to lock the table and you can't view any information in the frontend:
+3. Call the `partman.undo_partition_proc()` function on the table wanting to be unpartitioned. This seems to lock the table and you can't view any information in the frontend:
 
-```
+```SQL
 CALL partman.undo_partition_proc('public.history', '1 day', null, 1, 'public.history_moved', false, 0, 10, false);
 CALL partman.undo_partition_proc('public.history_uint', '1 day', null, 3, 'public.history_uint_moved', false, 0, 10, false);
 CALL partman.undo_partition_proc('public.history_str', '1 day', null, 3, 'public.history_str_moved', false, 0, 10, false);
@@ -575,7 +678,7 @@ CALL partman.undo_partition_proc('public.history_log', '1 day', null, 3, 'public
 CALL partman.undo_partition_proc('public.history_text', '1 day', null, 3, 'public.history_text_moved', false, 0, 10, false);
 ```
 
-```
+```SQL
 VACUUM ANALYZE history;
 VACUUM ANALYZE history_uint;
 VACUUM ANALYZE history_str;
@@ -583,20 +686,20 @@ VACUUM ANALYZE history_log;
 VACUUM ANALYZE history_text;
 ```
 
-3. Create the partitioned tables on the original `history*` tables wanting daily partitions:
+4. Create the partitioned tables on the original `history*` tables wanting daily partitions:
 
+```SQL
+SELECT partman.create_parent('public.history', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_uint', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_str', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_log', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
+SELECT partman.create_parent('public.history_text', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
 ```
-select partman.create_parent('public.history', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_uint', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_str', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_log', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
-select partman.create_parent('public.history_text', 'clock', 'native', 'daily', null, 7, 'on', null, true, 'seconds');
-```
 
-4. INSERT the data back into the newly partitioned tables. Use https://www.epochconverter.com/ to find epoch timestamp <= '7 days'. Below is just an example:
+5. INSERT the data back into the newly partitioned tables. Use https://www.epochconverter.com/ to find epoch timestamp <= '7 days'. Below is just an example:
 
 
-```
+```SQL
 INSERT INTO public.history SELECT * FROM public.history_moved WHERE clock > 1549168074;
 INSERT INTO public.history_uint SELECT * FROM public.history_uint_moved WHERE clock > 1549168074;
 INSERT INTO public.history_str SELECT * FROM public.history_str_moved WHERE clock > 1549168074;
@@ -604,10 +707,10 @@ INSERT INTO public.history_log SELECT * FROM public.history_log_moved WHERE cloc
 INSERT INTO public.history_text SELECT * FROM public.history_text_moved WHERE clock > 1549168074;
 ```
 
-5. Drop the old table and remove the `partman.part_config` column
+6. Drop the old table and remove the `partman.part_config` column
 
 
-```
+```SQL
 DROP TABLE history_moved;
 DELETE FROM partman.part_config WHERE parent_table = 'public.history_moved';
 DROP TABLE history_uint_moved;
@@ -620,10 +723,10 @@ DROP TABLE history_text_moved;
 DELETE FROM partman.part_config WHERE parent_table = 'public.history_text_moved';
 ```
 
-6. UPDATE the `partman.part_config` for `public.history`:
+7. UPDATE the `partman.part_config` for `public.history`:
 
 
-```
+```SQL
 UPDATE partman.part_config SET automatic_maintenance = 'on', retention_keep_table = false, retention = '8 day' WHERE parent_table = 'public.history';
 UPDATE partman.part_config SET automatic_maintenance = 'on', retention_keep_table = false, retention = '8 day' WHERE parent_table = 'public.history_uint';
 UPDATE partman.part_config SET automatic_maintenance = 'on', retention_keep_table = false, retention = '8 day' WHERE parent_table = 'public.history_str';
@@ -631,10 +734,10 @@ UPDATE partman.part_config SET automatic_maintenance = 'on', retention_keep_tabl
 UPDATE partman.part_config SET automatic_maintenance = 'on', retention_keep_table = false, retention = '8 day' WHERE parent_table = 'public.history_text';
 ```
 
-7. Run the maintenance:
+8. Run the maintenance:
 
 
-```
+```SQL
 SELECT partman.run_maintenance('public.history');
 SELECT partman.run_maintenance('public.history_uint');
 SELECT partman.run_maintenance('public.history_str');
@@ -642,15 +745,15 @@ SELECT partman.run_maintenance('public.history_log');
 SELECT partman.run_maintenance('public.history_text');
 ```
 
-8. Verify `partman.part_config`:
+9. Verify `partman.part_config`:
 
-```
+```SQL
 SELECT * FROM partman.part_config;
 ```
 
-9. Run VACUUM ANALYZE:
+10. Run VACUUM ANALYZE:
 
-```
+```SQL
 VACUUM ANALYZE history;
 VACUUM ANALYZE history_uint;
 VACUUM ANALYZE history_str;
@@ -668,12 +771,12 @@ Ensure `pg_partman_bgw` is set in `postgresql.conf` file.
 
 On the old database, ensure `pg_hba.conf` file is set to allow connections from the new database.
 
-```
+```bash
 # Note that the following commands are run on the new DB instance...
-root# mkdir -p /var/backups/postgresql
-root# chown -R postgres:postgres /var/backups/postgresql
-postgres$ time pg_dump -Fc --file=/var/backups/postgresql/zabbix.dump -d zabbix -h <OLD_ZABBIX_DATABASE>
-postgres# time pg_restore -Fc -j 8 -d zabbix /var/backups/postgresql/zabbix.dump
+$ sudo mkdir -p /var/backups/postgresql
+$ sudo chown -R postgres:postgres /var/backups/postgresql
+$ sudo -u postgres pg_dump -Fc --file=/var/backups/postgresql/zabbix.dump -d zabbix -h <OLD-`zabbix`-DATABASE> -U zabbix
+$ sudo -u postgres pg_restore -j 8 -d zabbix /var/backups/postgresql/zabbix.dump -U zabbix
 ```
 
 ---
@@ -693,12 +796,12 @@ Prepare the new PostgreSQL instance for the Zabbix 4.2 database as described in 
 
 On the old database, ensure `pg_hba.conf` file is set to allow connections from the new database.
 
-```
+```bash
 # Note that the following commands are run on the new DB instance...
-root# mkdir -p /var/backups/postgresql
-root# chown -R postgres:postgres /var/backups/postgresql
-postgres$ time pg_dump -Fd -j 4 -d zabbix -h <OLD_ZABBIX_DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-configuration-<DATE>  --exclude-table=history* --exclude-table=trends*
-postgres# time pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-configuration-<DATE>
+$ sudo mkdir -p /var/backups/postgresql
+$ sudo chown -R postgres:postgres /var/backups/postgresql
+$ sudo -u postgres pg_dump -Fd -j 4 -d zabbix -h <OLD-`zabbix`-DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-configuration-<DATE>  --exclude-table=history* --exclude-table=trends*
+$ sudo -u postgres pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-configuration-<DATE>
 ```
 
 * In order to prevent the disk from trashing you can use the compression `pg_dump` option `-j 4`.
@@ -714,7 +817,7 @@ Thus this minimizes downtime of the Zabbix environment as we can import the olde
 
 Once you start the Zabbix Server you should see the following lines in the `zabbix_server.log` file verifying that the upgrade has completed successfully.
 
-```
+```logs
   6330:20190512:020451.749 using configuration file: /etc/zabbix/zabbix_server.conf
   6330:20190512:020451.862 current database version (mandatory/optional): 03040000/03040007
   6330:20190512:020451.862 required mandatory version: 04020000
@@ -734,20 +837,24 @@ Once you start the Zabbix Server you should see the following lines in the `zabb
 
 In order to migrate the old data from `history*` and `trends*` data with as minimal time as possible perform the following `pg_dump/restore` command **on the new DB instance**:
 
-```
+```bash
 # Note that the following commands are run on the new DB instance...
-postgres$ time pg_dump -Fd -j 4 -d zabbix -h <OLD_ZABBIX_DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-history-<DATE> --table=history*
-postgres# time pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-history-<DATE>
+$ sudo mkdir -p /var/backups/postgresql
+$ sudo chown -R postgres:postgres /var/backups/postgresql
+$ sudo -u postgres pg_dump -Fd -j 4 -d zabbix -h <OLD-`zabbix`-DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-history-<DATE> --table=history*
+$ sudo -u postgres pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-history-<DATE>
 ```
 
 You can use the default `COPY` procedure (not using the `--inserts` option...), as there are no constraints on the tables. Thus it is allowed to insert all the data, even the duplicate ones, to the `history*` tables. Those will eventually be dropped via partitioning.
 
 For the `trends*` tables it is a bit more complex. Since there are unique constraints on those tables, it is not possible to use the `COPY` approach because it will most likely fail and no data will be inserted (`COPY` is just one big transaction). Therefore we can use the `--inserts` option for `pg_dump`, which creates dump files, where each table row is an extra INSERT. You can use the following approach:
 
-```
+```bash
 # Note that the following commands are run on the new DB instance...
-postgres$ time pg_dump -Fd -j 4 -d zabbix -h <OLD_ZABBIX_DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-trends-<DATE> --table=trends*
-postgres# time pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-trends-<DATE>
+$ sudo mkdir -p /var/backups/postgresql
+$ sudo chown -R postgres:postgres /var/backups/postgresql
+$ sudo -u postgres pg_dump -Fd -j 4 -d zabbix -h <OLD-`zabbix`-DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-trends-<DATE> --table=trends*
+$ sudo -u postgres pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-trends-<DATE>
 ```
 
 For **large Zabbix databases** the amount of data to restore could be exponential (Terabytes worth of trends* data) and take a very long time (hours). A use case mentioned by someone else was to change the parameter in the `postgresql.conf` file `fsync = off` (:scream:) (this just requires a reload of postgresql and not a restart of the cluster). **This is very, very risky** as turning this off can cause unrecoverable data corruption. As an end result turning off _fsync_ helped 49 million records to restore within 3 hours.
@@ -772,7 +879,7 @@ For **large Zabbix databases** the amount of data to restore could be exponentia
 
 Example:
 
-```
+```bash
 $ pgbench -i -s 50 zabbix
 $ pgbench -c 10 -j 2 -t 10000 zabbix
 ```
@@ -781,11 +888,11 @@ $ pgbench -c 10 -j 2 -t 10000 zabbix
 
 To help understand what is being done under the hood with partitioning we can use the `EXPLAIN` command. The `EXPLAIN` command shows the execution plan of a statement and how the tables i scanned.
 
-```
+```bash
 $ psql -d zabbix -c "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT count(*) FROM public.history;"
 ```
 
-```
+```bash
 $ psql -d zabbix -c "EXPLAIN ANALYZE SELECT * FROM public.history;"
 ```
 
@@ -798,13 +905,14 @@ $ psql -d zabbix -c "EXPLAIN ANALYZE SELECT * FROM public.history;"
 * 16GB RAM
 * SSD
 
-```
+```bash
 $ pgbench -i -s 50 zabbix
 $ pgbench -c 10 -j 2 -t 10000 zabbix
 ```
 
 Result:
-```
+
+```bash
 $ pgbench -c 10 -j 2 -t 10000 zabbix
 starting vacuum...end.
 transaction type: <builtin: TPC-B (sort of)>
@@ -826,7 +934,7 @@ tps = 1449.363391 (excluding connections establishing)
 * 126GB RAM
 * HDD
 
-```
+```bash
 $ pgbench -c 10 -j 2 -t 10000 zabbix
 starting vacuum...end.
 transaction type: <builtin: TPC-B (sort of)>
@@ -848,12 +956,12 @@ tps = 1214.421294 (excluding connections establishing)
 * 16GB RAM
 * SSD
 
-```
+```bash
 $ pgbench -i -s 50 zabbix
 $ pgbench -c 10 -j 2 -t 10000 zabbix
 ```
 
-```
+```bash
 $ pgbench -c 10 -j 2 -t 10000 zabbix
 starting vacuum...end.
 transaction type: <builtin: TPC-B (sort of)>
