@@ -509,9 +509,7 @@ Ensure that the `zabbix` user is the owner of all tables in the `zabbix` databas
 You can use the [change-zbxdb-table-ownership.sh shell script](files/change-zbxdb-table-ownership.sh) to change the ownership of all zabbix tables easily.
 
 ```bash
-$ sudo vim /var/lib/postgresql/change-zbxdb-table-ownership.sh
-# [add script output](files/change-zbxdb-table-ownership.sh)
-$ sudo chmod +x /var/lib/postgresql/change-zbxdb-table-ownership.sh zabbix zabbix
+$ sudo chmod +x /var/lib/postgresql/change-zbxdb-table-ownership.sh
 $ sudo -u postgres /var/lib/postgresql/change-zbxdb-table-ownership.sh zabbix zabbix
 ```
 
