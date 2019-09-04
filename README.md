@@ -24,7 +24,8 @@ Table of Contents
          * [<a href="#partition-maintenance-creating-future-partitions">Partition Maintenance: Creating Future Partitions</a>](#partition-maintenance-creating-future-partitions)
          * [<a href="#partition-maintenance-droppingexpiring-old-partitions">Partition Maintenance: Dropping/expiring old partitions</a>](#partition-maintenance-droppingexpiring-old-partitions)
       * [<a href="#troubleshooting">Troubleshooting</a>](#troubleshooting)
-         * [zabbix database user does not have appropriate permissions](#zabbix-database-user-does-not-have-appropriate-permissions)
+         * [<a href="#zabbix-database-user-does-not-have-appropriate-permissions">zabbix database user does not have appropriate permissions</a>](#zabbix-database-user-does-not-have-appropriate-permissions)
+         * [<a href="#importing-the-history-data-takes-forever">importing the history table takes forever</a>](#importing-the-history-table-takes-forever)
       * [<a href="#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman">Change Zabbix history tables from monthly to daily with pg_partman</a>](#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman)
       * [<a href="#zabbix-remote-data-dump">Zabbix Remote Data Dump</a>](#zabbix-remote-data-dump)
          * [<a href="#pgdumppgrestore-manual-mechanism">pgdump/pgrestore Manual Mechanism</a>](#pgdumppgrestore-manual-mechanism)
@@ -502,7 +503,7 @@ SELECT partman.run_maintenance('public.trends_uint');
 
 ## [Troubleshooting](#troubleshooting)
 
-### zabbix database user does not have appropriate permissions
+### [zabbix database user does not have appropriate permissions](#zabbix-database-user-does-not-have-appropriate-permissions)
 
 Ensure that the `zabbix` user is the owner of all tables in the `zabbix` database.
 
@@ -512,6 +513,30 @@ You can use the [change-zbxdb-table-ownership.sh shell script](files/change-zbxd
 $ sudo chmod +x /var/lib/postgresql/change-zbxdb-table-ownership.sh
 $ sudo -u postgres /var/lib/postgresql/change-zbxdb-table-ownership.sh zabbix zabbix
 ```
+
+### [importing the history table takes forever](#importing-the-history-table-takes-forever)
+
+You should, generally speaking not retain `history` table data longer than a few days as the zabbix build-in historical data mechanism then kicks in; aka trends!
+
+This is also suggested in the [zabbix documentation](https://www.zabbix.com/documentation/4.0/manual/config/items/history_and_trends). The `history` data (numeric float in this case) should be keep for the smallest possible number of days. I started using 7 days and find it plenty for my needs.
+
+I would, for example, recommend to delete `history` data older than 14 days as a good starting point then tune your partitions as you see fit; there is no real need to store numeric (float) data longer than a few days as trends takes over. That way when you `pg_dump` and `pg_restore` the data it won't take a long time to filtrate into the appropriate partitions.
+
+```SQL
+delete FROM history where age(to_timestamp(history.clock)) > interval '14 days';
+```
+
+This thus makes the `pg_restore` using the `COPY` method much faster.
+
+If you do intend to keep the `history` for a very long time you could disable the partman automatic maintenance via the following command:
+
+```SQL
+UPDATE partman.part_config SET automatic_maintenance = 'off' WHERE parent_table = 'public.history';
+```
+
+This is because importing a significant amount of data into the `history` partitioned table will take a very long time and running maintenance on that table will not work. Wait until the table is fully finished before turning on the maintenance for that table.
+
+This was reported in [issue 5](https://github.com/Doctorbal/zabbix-postgres-partitioning/issues/5)
 
 ---
 
@@ -835,24 +860,46 @@ Once you start the Zabbix Server you should see the following lines in the `zabb
 
 In order to migrate the old data from `history*` and `trends*` data with as minimal time as possible perform the following `pg_dump/restore` command **on the new DB instance**:
 
+Using the `--inserts` method for `history*` tables:
+
 ```bash
 # Note that the following commands are run on the new DB instance...
 $ sudo mkdir -p /var/backups/postgresql
 $ sudo chown -R postgres:postgres /var/backups/postgresql
-$ sudo -u postgres pg_dump -Fd -j 4 -d zabbix -h <OLD-`zabbix`-DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-history-<DATE> --table=history*
-$ sudo -u postgres pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-history-<DATE>
+$ sudo -u postgres pg_dump -Fd -j 4 -d zabbix -h <OLD-`zabbix`-DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-history-tables-<DATE> --table=history*
+$ sudo -u postgres pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-history-tables-<DATE>
 ```
 
 You can use the default `COPY` procedure (not using the `--inserts` option...), as there are no constraints on the tables. Thus it is allowed to insert all the data, even the duplicate ones, to the `history*` tables. Those will eventually be dropped via partitioning.
 
-For the `trends*` tables it is a bit more complex. Since there are unique constraints on those tables, it is not possible to use the `COPY` approach because it will most likely fail and no data will be inserted (`COPY` is just one big transaction). Therefore we can use the `--inserts` option for `pg_dump`, which creates dump files, where each table row is an extra INSERT. You can use the following approach:
+Using the `COPY` method for `history*` tables:
 
 ```bash
 # Note that the following commands are run on the new DB instance...
 $ sudo mkdir -p /var/backups/postgresql
 $ sudo chown -R postgres:postgres /var/backups/postgresql
-$ sudo -u postgres pg_dump -Fd -j 4 -d zabbix -h <OLD-`zabbix`-DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-trends-<DATE> --table=trends*
-$ sudo -u postgres pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-trends-<DATE>
+$ sudo -u postgres pg_dump -Fc --file=/var/backups/postgresql/zabbix-history-tables-<DATE>.dump -d zabbix -h <OLD-`zabbix`-DATABASE> -U zabbix --table=history*
+$ sudo -u postgres pg_restore -j 8 -d zabbix /var/backups/postgresql/zabbix-history-tables-<DATE>.dump -U zabbix
+```
+
+Using the `--inserts` method for `trends*` tables:
+
+```bash
+# Note that the following commands are run on the new DB instance...
+$ sudo mkdir -p /var/backups/postgresql
+$ sudo chown -R postgres:postgres /var/backups/postgresql
+$ sudo -u postgres pg_dump -Fd -j 4 -d zabbix -h <OLD-`zabbix`-DATABASE> -U zabbix --inserts -Z 4 --file=/var/backups/postgresql/zabbix-trends-tables-<DATE> --table=trends*
+$ sudo -u postgres pg_restore -Fd -j 4 -d zabbix -h 127.0.0.1 -U zabbix /var/backups/postgresql/zabbix-trends-tables-<DATE>
+```
+
+Using the `COPY` method for `trends*` tables:
+
+```bash
+# Note that the following commands are run on the new DB instance...
+$ sudo mkdir -p /var/backups/postgresql
+$ sudo chown -R postgres:postgres /var/backups/postgresql
+$ sudo -u postgres pg_dump -Fc --file=/var/backups/postgresql/zabbix-trends-tables-<DATE>.dump -d zabbix -h <OLD-`zabbix`-DATABASE> -U zabbix --table=trends*
+$ sudo -u postgres pg_restore -j 8 -d zabbix /var/backups/postgresql/zabbix-trends-tables-<DATE>.dump -U zabbix
 ```
 
 For **large Zabbix databases** the amount of data to restore could be exponential (Terabytes worth of trends* data) and take a very long time (hours). A use case mentioned by someone else was to change the parameter in the `postgresql.conf` file `fsync = off` (:scream:) (this just requires a reload of postgresql and not a restart of the cluster). **This is very, very risky** as turning this off can cause unrecoverable data corruption. As an end result turning off _fsync_ helped 49 million records to restore within 3 hours.
