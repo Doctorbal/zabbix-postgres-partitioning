@@ -23,9 +23,10 @@ Table of Contents
          * [<a href="#deleting-designated-partitions">Deleting Designated Partitions</a>](#deleting-designated-partitions)
          * [<a href="#partition-maintenance-creating-future-partitions">Partition Maintenance: Creating Future Partitions</a>](#partition-maintenance-creating-future-partitions)
          * [<a href="#partition-maintenance-droppingexpiring-old-partitions">Partition Maintenance: Dropping/expiring old partitions</a>](#partition-maintenance-droppingexpiring-old-partitions)
+      * [<a href="#set-up-zabbix-postgresql-partitioning-on-a-fresh-install">Set up Zabbix PostgreSQL Partitioning on a Fresh Install</a>](#set-up-zabbix-postgresql-partitioning-on-a-fresh-install)
       * [<a href="#troubleshooting">Troubleshooting</a>](#troubleshooting)
          * [<a href="#zabbix-database-user-does-not-have-appropriate-permissions">zabbix database user does not have appropriate permissions</a>](#zabbix-database-user-does-not-have-appropriate-permissions)
-         * [<a href="#importing-the-history-data-takes-forever">importing the history table takes forever</a>](#importing-the-history-table-takes-forever)
+         * [<a href="#importing-the-history-table-takes-forever">importing the history table takes forever</a>](#importing-the-history-table-takes-forever)
       * [<a href="#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman">Change Zabbix history tables from monthly to daily with pg_partman</a>](#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman)
       * [<a href="#zabbix-remote-data-dump">Zabbix Remote Data Dump</a>](#zabbix-remote-data-dump)
          * [<a href="#pgdumppgrestore-manual-mechanism">pgdump/pgrestore Manual Mechanism</a>](#pgdumppgrestore-manual-mechanism)
@@ -49,6 +50,8 @@ Table of Contents
 * Debian 8 Jessie or Debian 9 Stretch OS Distro
 * PostgreSQL version 11
 * Zabbix version 3.4 or 4.0 (tested successfully on both)
+
+**NOTE** - This guide was used to _migrate_ a working non-paritioned Zabbix instance to a new instance with partitioned tables ready to ingest the data into the proper partitions. A section was added to address how to set this up for a [Set up Zabbix postgreSQL partitioning on a fresh install](#set-up-zabbix-postgresql-partitioning-on-a-fresh-install)
 
 ---
 
@@ -152,7 +155,7 @@ In PostgreSQL v11, partitioning offers automatic index creation. You simply crea
 5. Shut down (or stop) the Zabbix Server and Zabbix Frontend from writing to the database.
 6. Back up the original database!!!
 
-### [Install PostgreSQL v11](#install-postgresql)
+### [Install PostgreSQL v11](#install-postgresql-v11)
 
 Install PostgreSQL using the following commands on a Debian OS distro.
 
@@ -174,7 +177,7 @@ $ sudo -u postgres createdb -O zabbix zabbix
 
 Do not import the initial schema as creating the partitions will cause issues.
 
-### [Create Empty history* and trends* Tables](#create-table)
+### [Create Empty history* and trends* Tables](#create-empty-history-and-trends-tables)
 
 On an empty `zabbix` database (you can create multiple database on the same server if you'd like or want to upgrade from version 9.x to 10/11) create the following tables for `history*` and `trends*`.
 
@@ -498,6 +501,30 @@ SELECT partman.run_maintenance('public.history_log');
 SELECT partman.run_maintenance('public.trends');
 SELECT partman.run_maintenance('public.trends_uint');
 ```
+
+---
+
+## [Set up Zabbix PostgreSQL Partitioning on a Fresh Install](#set-up-zabbix-postgresql-partitioning-on-a-fresh-install)
+
+To use partitioning on a fresh install on the following specifications (as an example):
+* **Zabbix version 4.0**
+* Debain 9 OS Distro
+* PostgreSQL v.11
+
+1. [Install PostgreSQL v11](#install-postgresql-v11).
+2. [Prepare Zabbix Database](#prepare-zabbix-database).
+3. [Create Empty history* and trends* Tables](#create-empty-history-and-trends-tables), [install pg_partman](#installing-pgpartman), ensure make the necessary changes in the [postgresql.conf file](#postgresqlconf), [create the partitioned tables](#create-partitioned-tables).  _Alternatively you can use my [ansible role to install pg_partman](#installing-pg_partman) which performs the previous blocks_. Ensure you read the comments in the [`defaults/main.yml` file](https://github.com/Doctorbal/zabbix-postgres-partitioning/blob/master/ansible/zabbix.pgpartman/defaults/main.yml).
+4. **Then import the Zabbix 4.0 schema by performing the following:**
+    ```bash
+    $ cd /tmp
+    $ wget https://repo.zabbix.com/zabbix/4.0/debian/pool/main/z/zabbix-release/zabbix-release_4.0-3+stretch_all.deb
+    $ sudo dpkg -i zabbix-release_4.0-3+stretch_all.deb
+    $ sudo apt update
+    $ sudo apt-get install --no-install-recommends zabbix-server-pgsql
+    # Now import the schema. You will get errors stating some tables and indexes already exist but ignore those as they were purposefully set on the partitioning portion.
+    $ zcat /usr/share/doc/zabbix-server-pgsql*/create.sql.gz | sudo -u zabbix psql zabbix
+    ```
+5. Continue with the rest of the installation of Zabbix (not listed here).
 
 ---
 
