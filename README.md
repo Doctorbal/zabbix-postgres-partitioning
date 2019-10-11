@@ -513,7 +513,7 @@ To use partitioning on a fresh install on the following specifications (as an ex
 
 1. [Install PostgreSQL v11](#install-postgresql-v11).
 2. [Prepare Zabbix Database](#prepare-zabbix-database).
-3. [Create Empty history* and trends* Tables](#create-empty-history-and-trends-tables), [install pg_partman](#installing-pgpartman), ensure make the necessary changes in the [postgresql.conf file](#postgresqlconf), [create the partitioned tables](#create-partitioned-tables).  _Alternatively you can use my [ansible role to install pg_partman](#installing-pg_partman) which performs the previous blocks_. Ensure you read the comments in the [`defaults/main.yml` file](https://github.com/Doctorbal/zabbix-postgres-partitioning/blob/master/ansible/zabbix.pgpartman/defaults/main.yml).
+3. [Create Empty history* and trends* Tables](#create-empty-history-and-trends-tables), [install pg_partman](#installing-pgpartman), ensure make the necessary changes in the [postgresql.conf file](#postgresqlconf), [create the partitioned tables](#create-partitioned-tables).  _Alternatively you can use my [ansible role to install pg_partman](https://github.com/Doctorbal/zabbix-postgres-partitioning/blob/master/ansible/zabbix.pgpartman) which performs the previous blocks_. Ensure you read the comments in the [`defaults/main.yml` file](https://github.com/Doctorbal/zabbix-postgres-partitioning/blob/master/ansible/zabbix.pgpartman/defaults/main.yml).
 4. **Then import the Zabbix 4.0 schema by performing the following:**
     ```bash
     $ cd /tmp
