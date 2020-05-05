@@ -27,7 +27,7 @@ Table of Contents
       * [<a href="#troubleshooting">Troubleshooting</a>](#troubleshooting)
          * [<a href="#zabbix-database-user-does-not-have-appropriate-permissions">zabbix database user does not have appropriate permissions</a>](#zabbix-database-user-does-not-have-appropriate-permissions)
          * [<a href="#importing-the-history-table-takes-forever">importing the history table takes forever</a>](#importing-the-history-table-takes-forever)
-      * [<a href="#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman">Change Zabbix history tables from monthly to daily with pg_partman</a>](#change-zabbix-history-tables-from-monthly-to-daily-with-pg_partman)
+      * [<a href="#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman">Change Zabbix history tables from monthly to daily with pgpartman</a>](#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman)
       * [<a href="#zabbix-remote-data-dump">Zabbix Remote Data Dump</a>](#zabbix-remote-data-dump)
          * [<a href="#pgdumppgrestore-manual-mechanism">pgdump/pgrestore Manual Mechanism</a>](#pgdumppgrestore-manual-mechanism)
       * [<a href="#upgrade-zabbix-v34-to-v42-while-moving-from-postgresql-v96-to-postgresql-v11">Upgrade Zabbix v3.4 to v4.2 while moving from PostgreSQL v9.6 to PostgreSQL v11</a>](#upgrade-zabbix-v34-to-v42-while-moving-from-postgresql-v96-to-postgresql-v11)
@@ -530,6 +530,14 @@ To use partitioning on a fresh install on the following specifications (as an ex
 
 ## [Troubleshooting](#troubleshooting)
 
+### [How can I list all tables in partman schema?](#how-can-i-list-all-tables-in-partman-schema)
+
+Run the following sql query in the `zabbix` DB as the `zabbix` user:
+
+```sql
+zabbix=# \dt partman.*
+```
+
 ### [zabbix database user does not have appropriate permissions](#zabbix-database-user-does-not-have-appropriate-permissions)
 
 Ensure that the `zabbix` user is the owner of all tables in the `zabbix` database.
@@ -567,7 +575,7 @@ This was reported in [issue 5](https://github.com/Doctorbal/zabbix-postgres-part
 
 ---
 
-## [Change Zabbix history tables from monthly to daily with pg_partman](#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman)
+## [Change Zabbix history tables from monthly to daily with pgpartman](#change-zabbix-history-tables-from-monthly-to-daily-with-pgpartman)
 
 
 * Originally I performed monthly partitions on the history* tables. But there is so much data being sent to Zabbix it increases the Zabbix database quickly. This will make scaling a problem in the future.
@@ -718,7 +726,7 @@ SELECT partman.create_parent('public.history_log_moved', 'clock', 'native', 'mon
 SELECT partman.create_parent('public.history_text_moved', 'clock', 'native', 'monthly', null, 1, 'on', null, true, 'seconds');
 ```
 
-3. Call the `partman.undo_partition_proc()` function on the table wanting to be unpartitioned. This seems to lock the table and you can't view any information in the frontend:
+3. Call the `partman.undo_partition_proc()` function on the table wanting to be unpartitioned. This will insert the data into the newly created tables in the previous steps. *This seems to lock the table and you can't view any information in the frontend (hence a reason why the frontend should be stopped from writing to the DB)*:
 
 ```SQL
 CALL partman.undo_partition_proc('public.history', '1 day', null, 1, 'public.history_moved', false, 0, 10, false);
