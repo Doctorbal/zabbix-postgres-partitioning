@@ -317,10 +317,11 @@ Restart postgresql (`sudo systemctl restart postgresql.service`) and in the logs
 pg_partman master background worker master process initialized with role zabbix
 ```
 
-Connect as `zabbix` database user to the `zabbix` database and create the `pg_partman` extension as part of the `public` schema on the `zabbix` database.
+Connect to the `zabbix` database and create the `pg_partman` extension as part of the `public` schema on the `zabbix` database. The following commands should be run by a **superuser** of the database cluster (i.e. 'postgres' is used in this example, suitable for Debian/Ubuntu).
+
 
 ```bash
-$ sudo -u zabbix psql zabbix
+$ sudo -u postgres psql zabbix
 ```
 
 Then create the SCHEMA and EXTENSION:
@@ -330,8 +331,7 @@ CREATE SCHEMA partman;
 CREATE EXTENSION pg_partman schema partman;
 ```
 
-Ensure the `zabbix` database user can execute all functions, procedures on the `partman` SCHEMA with the following SQL commands. The following commands should be run by a **superuser** of the database cluster.
-
+Ensure the `zabbix` database user can execute all functions, procedures on the `partman` SCHEMA with the following SQL commands.
 ```SQL
 GRANT ALL ON SCHEMA partman TO zabbix;
 GRANT ALL ON ALL TABLES IN SCHEMA partman TO zabbix;
